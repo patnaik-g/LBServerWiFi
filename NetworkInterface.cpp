@@ -47,6 +47,7 @@ void communicationTask(void *pvParameters) {
                 if (c == '\n' || c == '\r') {
                     if (idx > 0) {
                         buf[idx] = '\0';
+                        LOG_DEBUG("DEBUG: %s\n", buf);
                         if (processLbServerCommand(buf, netToLnQueue)) netClient.println("SENT OK");
                         idx = 0;
                     }
