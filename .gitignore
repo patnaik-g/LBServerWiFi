@@ -1,0 +1,8 @@
+.temp/
+build/
+libraries/
+*.bin
+*.elf
+*.hex
+*~
+.DS_Store
