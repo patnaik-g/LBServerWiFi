@@ -8,23 +8,29 @@ WiFiClient &netClient = wifiManager.getClient();
 // Static lookup table for high-speed hex conversion
 static const char hexTable[] = "0123456789ABCDEF";
 
+/**
+ * communicationTask: Manages the bidirectional bridge between the WiFi network
+ * (LBServer protocol) and the internal LocoNet queues. It handles client 
+ * persistence, command parsing, and layout status reporting.
+ */
 void communicationTask(void *pvParameters) {
     wifiManager.begin();
     pinMode(PIN_STATUS_LED, OUTPUT);
     
-    char buf[64]; 
-    int idx = 0;
+    static char buf[64];  // Inbound network buffer
+    static char out[128]; // Outbound network buffer
     bool lastNetConnected = false;
 
     for (;;) {
         bool currentNetConnected = netClient.connected();
         
-        // 1. Connection Management
+        // --- SECTION 1: CONNECTION MANAGEMENT ---
+        // Handles new client connections, version handshaking, and status LED blinking
         if (!currentNetConnected) {
             netClient = wifiManager.getServer().available();
             currentNetConnected = netClient.connected();
             if (currentNetConnected && !lastNetConnected) {
-                netClient.println("VERSION ESP32 LocoNet Bridge v1.6.2");
+                netClient.println("VERSION ESP32 LocoNet Bridge v1.6.4");
                 LOG_DEBUG(">>> JMRI Client Connected\n");
                 digitalWrite(PIN_STATUS_LED, HIGH);
                 lastNetConnected = true;
@@ -43,48 +49,57 @@ void communicationTask(void *pvParameters) {
             }
         }
 
-        // 2. Inbound Path: JMRI -> LocoNet (Verified Logic)
+        // --- SECTION 2: INBOUND (JMRI -> LOCONET) ---
+        // Drains network buffer, trims whitespace/CRLF, and queues commands for the hardware
         while (netClient.available() > 0) {
-            char c = netClient.read();
-            if (c == '\n' || c == '\r') {
-                if (idx > 0) {
-                    buf[idx] = '\0';
-                    LOG_DEBUG("DEBUG: Received [%s]\n", buf);
+            size_t length = netClient.readBytesUntil('\n', buf, sizeof(buf) - 1);
+            if (length > 0) {
+                buf[length] = '\0';
+                
+                // Trim trailing \r or spaces (ASCII <= 32)
+                while (length > 0 && (buf[length-1] <= 32)) {
+                    buf[--length] = '\0';
+                }
+
+                if (length > 0) {
+                    LOG_DEBUG("DEBUG: %s\n", buf);
+                    
                     if (processLbServerCommand(buf, netToLnQueue)) {
-                        netClient.println("SENT OK");
+                        netClient.print("SENT OK\r\n");
                         netClient.flush();
                         LOG_DEBUG("DEBUG: SENT OK\n");
                     } else {
-                        LOG_DEBUG("DEBUG: Parser REJECTED command\n");
+                        LOG_DEBUG("DEBUG: Parser REJECTED [%s]\n", buf);
                     }
-                    idx = 0;
                 }
-            } else if (idx < sizeof(buf) - 1) {
-                buf[idx++] = c;
             }
         }
 
-        // 3. Outbound Path: LocoNet -> JMRI (Optimized Hex Conversion)
+        // --- SECTION 3: OUTBOUND (LOCONET -> JMRI) ---
+        // Dequeues hardware messages, assembles them into strings, and transmits to network
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t len = getPacketLen(&rx);
             
-            // Network Output: Efficient hex construction
-            netClient.print("RECEIVE");
+            // Assemble the "RECEIVE" string manually in RAM for atomic transmission
+            memcpy(out, "RECEIVE", 7);
+            int pos = 7;
             for (uint8_t i = 0; i < len; i++) {
-                netClient.print(' ');
-                netClient.print(hexTable[(rx.data[i] >> 4) & 0x0F]);
-                netClient.print(hexTable[rx.data[i] & 0x0F]);
+                out[pos++] = ' ';
+                out[pos++] = hexTable[(rx.data[i] >> 4) & 0x0F];
+                out[pos++] = hexTable[rx.data[i] & 0x0F];
             }
-            netClient.println();
-            netClient.flush();
-
-            // Debug Mirror: Matching logic
-            LOG_DEBUG("DEBUG: RECEIVE");
-            for (uint8_t i = 0; i < len; i++) {
-                LOG_DEBUG(" %c%c", hexTable[(rx.data[i] >> 4) & 0x0F], hexTable[rx.data[i] & 0x0F]);
+            out[pos++] = '\r'; 
+            out[pos++] = '\n';
+            
+            if (currentNetConnected) {
+                netClient.write((const uint8_t*)out, pos);
+                netClient.flush();
             }
-            LOG_DEBUG("\n");
+            
+            // Mirror exactly what was sent to the Debug Log
+            out[pos] = '\0'; 
+            LOG_DEBUG("DEBUG: %s", out); 
         }
 
         vTaskDelay(1); 
