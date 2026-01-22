@@ -21,7 +21,7 @@ void communicationTask(void *pvParameters) {
             netClient = wifiManager.getServer().available();
             currentNetConnected = netClient.connected();
             if (currentNetConnected && !lastNetConnected) {
-                netClient.println("VERSION ESP32 LocoNet Bridge v1.5.3");
+                netClient.println("VERSION ESP32 LocoNet Bridge v1.6.1");
                 LOG_DEBUG(">>> JMRI Client Connected\n");
                 digitalWrite(PIN_STATUS_LED, HIGH);
                 lastNetConnected = true;
@@ -49,8 +49,9 @@ void communicationTask(void *pvParameters) {
                     LOG_DEBUG("DEBUG: Received [%s]\n", buf);
                     
                     if (processLbServerCommand(buf, netToLnQueue)) {
-                        netClient.println("SENT OK");        // Network response
-                        LOG_DEBUG("DEBUG: SENT OK\n");       // Local confirmation
+                        netClient.println("SENT OK");
+                        netClient.flush();        // Force acknowledgment to JMRI
+                        LOG_DEBUG("DEBUG: SENT OK\n");
                     } else {
                         LOG_DEBUG("DEBUG: Parser REJECTED command\n");
                     }
@@ -66,14 +67,15 @@ void communicationTask(void *pvParameters) {
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t len = getPacketLen(&rx);
             
-            // Send to Network Client
+            // Network Output
             netClient.print("RECEIVE");
             for (uint8_t i = 0; i < len; i++) {
                 netClient.printf(" %02X", rx.data[i]);
             }
             netClient.println();
-            
-            // Mirror to Debug Log
+            netClient.flush(); // Ensure JMRI sees layout updates instantly
+
+            // Debug Mirror
             LOG_DEBUG("DEBUG: RECEIVE");
             for (uint8_t i = 0; i < len; i++) {
                 LOG_DEBUG(" %02X", rx.data[i]);
