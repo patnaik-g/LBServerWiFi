@@ -9,73 +9,78 @@ void communicationTask(void *pvParameters) {
     wifiManager.begin();
     pinMode(PIN_STATUS_LED, OUTPUT);
     
-    char buf[256], telnetBuf[128];
-    int idx = 0, telnetIdx = 0;
+    char buf[64]; 
+    int idx = 0;
     bool lastNetConnected = false;
-    unsigned long lastHeartbeat = 0, lastBlink = 0;
-    bool ledState = false;
 
     for (;;) {
         bool currentNetConnected = netClient.connected();
+        
+        // 1. Connection Management
         if (!currentNetConnected) {
             netClient = wifiManager.getServer().available();
             currentNetConnected = netClient.connected();
             if (currentNetConnected && !lastNetConnected) {
-                netClient.println("VERSION ESP32 LocoNet Bridge v1.5");
+                netClient.println("VERSION ESP32 LocoNet Bridge v1.5.3");
                 LOG_DEBUG(">>> JMRI Client Connected\n");
-                lastNetConnected = true;
                 digitalWrite(PIN_STATUS_LED, HIGH);
+                lastNetConnected = true;
+            } else {
+                static unsigned long lastBlink = 0;
+                static bool ledState = false;
+                ArduinoOTA.handle();
+                if (millis() - lastBlink > 500) {
+                    ledState = !ledState;
+                    digitalWrite(PIN_STATUS_LED, ledState);
+                    lastBlink = millis();
+                }
+                lastNetConnected = false;
+                vTaskDelay(10); 
+                continue; 
             }
         }
 
-        if (millis() - lastHeartbeat > 20000) {
-            processTelnetCommand((char*)"help", netToLnQueue);
-            LOG_DEBUG("STATUS | JMRI: %s | Uptime: %lu min\n", currentNetConnected ? "ON" : "OFF", millis() / 60000);
-            lastHeartbeat = millis();
-        }
-
-        if (!currentNetConnected) {
-            ArduinoOTA.handle();
-            if (millis() - lastBlink > 500) {
-                ledState = !ledState;
-                digitalWrite(PIN_STATUS_LED, ledState);
-                lastBlink = millis();
-            }
-        } else {
-            while (netClient.available()) {
-                char c = netClient.read();
-                if (c == '\n' || c == '\r') {
-                    if (idx > 0) {
-                        buf[idx] = '\0';
-                        LOG_DEBUG("DEBUG: %s\n", buf);
-                        if (processLbServerCommand(buf, netToLnQueue)) netClient.println("SENT OK");
-                        idx = 0;
-                    }
-                } else if (idx < sizeof(buf) - 1) buf[idx++] = c;
-            }
-        }
-
-        while (TelnetStream.available()) {
-            char c = TelnetStream.read();
+        // 2. Inbound Path: JMRI -> LocoNet
+        while (netClient.available() > 0) {
+            char c = netClient.read();
             if (c == '\n' || c == '\r') {
-                if (telnetIdx > 0) {
-                    telnetBuf[telnetIdx] = '\0';
-                    if (strcmp(telnetBuf, "reboot") == 0) ESP.restart();
-                    else if (strcmp(telnetBuf, "status") == 0) lastHeartbeat = 0; // Trigger heartbeat
-                    else processTelnetCommand(telnetBuf, netToLnQueue);
-                    telnetIdx = 0;
-                } else processTelnetCommand((char*)"help", netToLnQueue);
-            } else if (telnetIdx < sizeof(telnetBuf) - 1) telnetBuf[telnetIdx++] = c;
+                if (idx > 0) {
+                    buf[idx] = '\0';
+                    LOG_DEBUG("DEBUG: Received [%s]\n", buf);
+                    
+                    if (processLbServerCommand(buf, netToLnQueue)) {
+                        netClient.println("SENT OK");        // Network response
+                        LOG_DEBUG("DEBUG: SENT OK\n");       // Local confirmation
+                    } else {
+                        LOG_DEBUG("DEBUG: Parser REJECTED command\n");
+                    }
+                    idx = 0;
+                }
+            } else if (idx < sizeof(buf) - 1) {
+                buf[idx++] = c;
+            }
         }
 
+        // 3. Outbound Path: LocoNet -> JMRI
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t len = getPacketLen(&rx);
-            char out[128]; int pos = sprintf(out, "RECEIVE");
-            for (uint8_t i = 0; i < len; i++) pos += sprintf(out + pos, " %02X", rx.data[i]);
-            if (currentNetConnected) netClient.println(out);
-            LOG_DEBUG("DEBUG: %s\n", out);
+            
+            // Send to Network Client
+            netClient.print("RECEIVE");
+            for (uint8_t i = 0; i < len; i++) {
+                netClient.printf(" %02X", rx.data[i]);
+            }
+            netClient.println();
+            
+            // Mirror to Debug Log
+            LOG_DEBUG("DEBUG: RECEIVE");
+            for (uint8_t i = 0; i < len; i++) {
+                LOG_DEBUG(" %02X", rx.data[i]);
+            }
+            LOG_DEBUG("\n");
         }
-        vTaskDelay(1);
+
+        vTaskDelay(1); 
     }
 }
