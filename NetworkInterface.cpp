@@ -67,7 +67,7 @@ void communicationTask(void *pvParameters) {
         }
 
         if (currentNetConnected && !lastNetConnected) {
-            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.2\r\n", 38);
+            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.3\r\n", 38);
             LOG_DEBUG(">>> JMRI Client Connected\n");
             digitalWrite(PIN_STATUS_LED, HIGH);
             lastNetConnected = true;
@@ -75,17 +75,24 @@ void communicationTask(void *pvParameters) {
             lastNetConnected = false;
         }
 
-        // --- SECTION 2: Inbound (Aligned 32-bit Signature Check) ---
+        // --- SECTION 2: Inbound (Aligned 32-bit Signature & Protocol Echo) ---
         if (currentNetConnected) {
             while (netClient.available() > 0) {
                 size_t len = netClient.readBytesUntil('\n', inbound.asChars, 255);
                 
-                // Single-cycle word comparison via union
+                // Optimized 32-bit validation
                 if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                     
                     inbound.asChars[len] = '\0';
                     LOG_DEBUG("DEBUG: %s\n", inbound.asChars);
                     
+                    // 1. PROTOCOL ECHO (LBServer requirement)
+                    // Echo the received command back as a RECEIVE message
+                    netClient.write(out, 7);              // "RECEIVE"
+                    netClient.write(inbound.asChars + 4, len - 4); // The hex payload
+                    netClient.write("\r\n", 2);
+
+                    // 2. BINARY PARSING
                     lnMsg tx; uint8_t txIdx = 0;
                     char *p = inbound.asChars + 4;
 
@@ -96,6 +103,8 @@ void communicationTask(void *pvParameters) {
                             p += 2;
                         } else p++;
                     }
+
+                    // 3. DISPATCH & ACK
                     if (txIdx > 0 && xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
                         netClient.write(rsp_ok, 9);
                         LOG_DEBUG("DEBUG: %s", rsp_ok);
