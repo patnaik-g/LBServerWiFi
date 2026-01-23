@@ -6,8 +6,18 @@ WiFiManager wifiManager("LBServer");
 WiFiClient &netClient = wifiManager.getClient();
 
 /**
+ * Protocol Buffer Union
+ * Forces 4-byte alignment to allow safe 32-bit integer comparisons 
+ * without triggering an alignment exception on the Xtensa processor.
+ */
+union ProtocolBuffer {
+    char asChars[256];
+    uint32_t asUint32[64]; 
+};
+
+/**
  * fastHexToByte
- * Optimized for Uppercase ASCII hex conversion.
+ * Optimized for Uppercase ASCII hex conversion (0-9, A-F).
  */
 static inline uint8_t fastHexToByte(char high, char low) {
     auto toN = [](char c) -> uint8_t {
@@ -21,20 +31,22 @@ void communicationTask(void *pvParameters) {
     wifiManager.begin();
     pinMode(PIN_STATUS_LED, OUTPUT);
     
-    char buf[256];
+    ProtocolBuffer inbound; 
     char out[128]; 
-    char cmd_send[4]; 
     char rsp_ok[10]; 
     
     // --- ONE-TIME INITIALIZATION ---
+    // Hardwire "RECEIVE" header
     out[0] = 'R'; out[1] = 'E'; out[2] = 'C'; out[3] = 'E';
     out[4] = 'I'; out[5] = 'V'; out[6] = 'E';
     
-    cmd_send[0] = 'S'; cmd_send[1] = 'E'; cmd_send[2] = 'N'; cmd_send[3] = 'D';
-    
+    // Hardwire "SENT OK" response
     rsp_ok[0] = 'S'; rsp_ok[1] = 'E'; rsp_ok[2] = 'N'; rsp_ok[3] = 'T';
     rsp_ok[4] = ' '; rsp_ok[5] = 'O'; rsp_ok[6] = 'K'; 
     rsp_ok[7] = '\r'; rsp_ok[8] = '\n'; rsp_ok[9] = '\0';
+    
+    // Little-Endian 32-bit "SEND" (hex: 0x444E4553)
+    const uint32_t SIG_SEND = 0x444E4553; 
     
     bool lastNetConnected = false;
     unsigned long lastBlink = 0;
@@ -43,7 +55,7 @@ void communicationTask(void *pvParameters) {
     for (;;) {
         bool currentNetConnected = netClient.connected();
 
-        // Connection & Blinking
+        // --- SECTION 1: Connection & Blinking ---
         if (!currentNetConnected) {
             netClient = wifiManager.getServer().available();
             currentNetConnected = netClient.connected();
@@ -55,7 +67,7 @@ void communicationTask(void *pvParameters) {
         }
 
         if (currentNetConnected && !lastNetConnected) {
-            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.0\r\n", 38);
+            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.2\r\n", 38);
             LOG_DEBUG(">>> JMRI Client Connected\n");
             digitalWrite(PIN_STATUS_LED, HIGH);
             lastNetConnected = true;
@@ -63,21 +75,21 @@ void communicationTask(void *pvParameters) {
             lastNetConnected = false;
         }
 
-        // Inbound (Prioritized Drain)
+        // --- SECTION 2: Inbound (Aligned 32-bit Signature Check) ---
         if (currentNetConnected) {
             while (netClient.available() > 0) {
-                size_t len = netClient.readBytesUntil('\n', buf, sizeof(buf) - 1);
-                if (len >= 4 && 
-                    buf[0] == cmd_send[0] && buf[1] == cmd_send[1] && 
-                    buf[2] == cmd_send[2] && buf[3] == cmd_send[3]) {
+                size_t len = netClient.readBytesUntil('\n', inbound.asChars, 255);
+                
+                // Single-cycle word comparison via union
+                if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                     
-                    buf[len] = '\0';
-                    LOG_DEBUG("DEBUG: %s\n", buf);
+                    inbound.asChars[len] = '\0';
+                    LOG_DEBUG("DEBUG: %s\n", inbound.asChars);
                     
                     lnMsg tx; uint8_t txIdx = 0;
-                    char *p = buf + 4;
+                    char *p = inbound.asChars + 4;
 
-                    while (p < (buf + len) && txIdx < sizeof(tx.data)) {
+                    while (p < (inbound.asChars + len) && txIdx < sizeof(tx.data)) {
                         if (*p <= 32) { p++; continue; } 
                         if (*p && *(p + 1)) {
                             tx.data[txIdx++] = fastHexToByte(*p, *(p + 1));
@@ -92,7 +104,7 @@ void communicationTask(void *pvParameters) {
             }
         }
 
-        // Outbound (Binary to ASCII)
+        // --- SECTION 3: Outbound (Using Initialized Header) ---
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);
@@ -105,10 +117,13 @@ void communicationTask(void *pvParameters) {
                 out[pos++] = hex[rx.data[i] & 0x0F];
             }
             out[pos++] = '\r'; out[pos++] = '\n';
+            
             if (currentNetConnected) netClient.write(out, pos);
+            
             out[pos] = '\0';
             LOG_DEBUG("DEBUG: %s", out);
         }
+
         vTaskDelay(1);
     }
 }
