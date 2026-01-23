@@ -1,5 +1,4 @@
 #include "NetworkInterface.h"
-#include "LoconetInterface.h"
 #include "debug.h"
 
 WiFiManager wifiManager("LBServer");
@@ -15,7 +14,7 @@ union ProtocolBuffer {
     uint32_t asUint32[64]; 
 };
 
-/**
+/*
  * fastHexToByte
  * Optimized for Uppercase ASCII hex conversion (0-9, A-F).
  */
