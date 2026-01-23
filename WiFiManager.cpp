@@ -15,7 +15,7 @@ void WiFiManager::begin() {
 
 #ifdef CLEARPREFS
   prefs.clear();
-  debug.println("NVM CLEARED: WiFi credentials and hostname reset.");
+  LOG_DEBUG("NVM CLEARED: WiFi credentials and hostname reset.\n");
 #endif
 
   String ssid = prefs.getString("ssid", "");
@@ -34,25 +34,21 @@ void WiFiManager::begin() {
 bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   WiFi.setHostname(hostname);
   WiFi.begin(ssid.c_str(), password.c_str());
-  debug.print("Connecting to WiFi: ");
-  debug.println(ssid);
+  LOG_DEBUG("Connecting to WiFi: %s\n", ssid.c_str());
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(500);
-    debug.print(".");
+    LOG_DEBUG(".");
   }
 
   if (WiFi.status() == WL_CONNECTED) {
   // Print connection details immediately
-    debug.println("\n-----------------------------------");
-    debug.println("WiFi Connected!");
-    debug.print("IP Address: ");
-    debug.println(WiFi.localIP()); 
-    debug.print("mDNS Hostname: ");
-    debug.print(hostname);
-    debug.println(".local");
-    debug.println("-----------------------------------");
+    LOG_DEBUG("\n-----------------------------------\n");
+    LOG_DEBUG("WiFi Connected!\n");
+    LOG_DEBUG("IP Address: %s\n", WiFi.localIP().toString().c_str()); 
+    LOG_DEBUG("mDNS Hostname: %s.local\n", hostname);
+    LOG_DEBUG("-----------------------------------\n");
     //ArduinoOTA.setPassword("update");
     ArduinoOTA.begin();
     TelnetStream.begin();
@@ -65,11 +61,10 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
 }
 
 void WiFiManager::startAPMode() {
-  debug.println("Starting AP Mode...");
+  LOG_DEBUG("Starting AP Mode...\n");
   WiFi.softAP(hostname);  // Use hostname as AP SSID
 
-  debug.print("AP IP Address: ");
-  debug.println(WiFi.softAPIP());
+  LOG_DEBUG("AP IP Address: %s\n", WiFi.softAPIP().toString().c_str());
 
   webServer.on("/", [this]() {
     webServer.send(200, "text/html",
@@ -111,7 +106,7 @@ void WiFiManager::startAPMode() {
       prefs.putString("ssid", ssid);
       prefs.putString("password", password);
       prefs.putString("hostname", hostname);
-      debug.println("Credentials saved. Restarting...");
+      LOG_DEBUG("Credentials saved. Restarting...\n");
       webServer.send(200, "text/html",
                      "<!DOCTYPE html>"
                      "<html>"
@@ -140,7 +135,7 @@ void WiFiManager::startAPMode() {
   });
 
   webServer.begin();
-  debug.println("AP Mode Ready. Connect and go to: http://192.168.4.1");
+  LOG_DEBUG("AP Mode Ready. Connect and go to: http://192.168.4.1\n");
 
   while (true) {
     webServer.handleClient();
@@ -153,7 +148,7 @@ void WiFiManager::waitForClient() {
   while (!(client = server.available())) {
     ArduinoOTA.handle();
     delay(500);
-    debug.print(".");
+    LOG_DEBUG(".");
   }
-  debug.println(" Client connected!");
+  LOG_DEBUG(" Client connected!\n");
 }

@@ -7,8 +7,7 @@
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <TelnetStream.h>
-
-#define debug Serial
+#include "AsyncDebug.h"
 
 // Network & mDNS Configuration
 #define DEFAULT_TCP_PORT 1234
