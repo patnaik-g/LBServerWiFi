@@ -6,6 +6,9 @@
 #include <ArduinoOTA.h>    // Support for Over-The-Air firmware updates
 #include "WiFiManager.h"   // Custom manager for WiFi provisioning and persistence
 
+/* UI / Status Mapping - Moved here from LoconetInterface */
+#define PIN_STATUS_LED 2
+
 /* * Global Queue Handles 
  * These queues facilitate asynchronous communication between the 
  * Network Task and the LocoNet Hardware Task.
