@@ -1,6 +1,6 @@
 #include "NetworkInterface.h"
 #include <LocoNetStreamESP32.h> // Required for consolidated hardware logic
-#include "debug.h"
+#include "AsyncDebug.h"
 
 /* Hardware Configuration - Consistently defined here for hardware baseline */
 #define LOCONET_PIN_RX 22
@@ -31,7 +31,10 @@ QueueHandle_t netToLnQueue;
 void setup() {
     Serial.begin(115200);
     unsigned long start = millis();
-    while (!Serial && millis() - start < 2000) { delay(10); } 
+    while (!Serial && millis() - start < 2000) { delay(10); }
+
+    // Initialize the new Async Debugger
+    Debug::begin();
  
     // Increased queue depth slightly to handle bursty LocoNet traffic
     lnToNetQueue = xQueueCreate(32, sizeof(lnMsg));

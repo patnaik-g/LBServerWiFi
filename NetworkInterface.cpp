@@ -1,5 +1,5 @@
 #include "NetworkInterface.h"
-#include "debug.h"
+#include "AsyncDebug.h"
 
 WiFiManager wifiManager("LBServer");
 WiFiClient &netClient = wifiManager.getClient();
