@@ -7,14 +7,13 @@ WiFiClient &netClient = wifiManager.getClient();
 /**
  * Protocol Buffer Union
  * Forces 4-byte alignment to allow safe 32-bit integer comparisons 
- * without triggering an alignment exception on the Xtensa processor.
  */
 union ProtocolBuffer {
     char asChars[256];
     uint32_t asUint32[64]; 
 };
 
-/*
+/**
  * fastHexToByte
  * Optimized for Uppercase ASCII hex conversion (0-9, A-F).
  */
@@ -35,16 +34,13 @@ void communicationTask(void *pvParameters) {
     char rsp_ok[10]; 
     
     // --- ONE-TIME INITIALIZATION ---
-    // Hardwire "RECEIVE" header
     out[0] = 'R'; out[1] = 'E'; out[2] = 'C'; out[3] = 'E';
     out[4] = 'I'; out[5] = 'V'; out[6] = 'E';
     
-    // Hardwire "SENT OK" response
     rsp_ok[0] = 'S'; rsp_ok[1] = 'E'; rsp_ok[2] = 'N'; rsp_ok[3] = 'T';
     rsp_ok[4] = ' '; rsp_ok[5] = 'O'; rsp_ok[6] = 'K'; 
     rsp_ok[7] = '\r'; rsp_ok[8] = '\n'; rsp_ok[9] = '\0';
     
-    // Little-Endian 32-bit "SEND" (hex: 0x444E4553)
     const uint32_t SIG_SEND = 0x444E4553; 
     
     bool lastNetConnected = false;
@@ -66,7 +62,12 @@ void communicationTask(void *pvParameters) {
         }
 
         if (currentNetConnected && !lastNetConnected) {
-            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.3\r\n", 38);
+            // OPTIMIZATION: Disable Nagle for real-time control
+            netClient.setNoDelay(true); 
+            // OPTIMIZATION: Prevent blocking outbound traffic
+            netClient.setTimeout(10);   
+            
+            netClient.write("VERSION ESP32 LocoNet Bridge v1.7.5\r\n", 38);
             LOG_DEBUG(">>> JMRI Client Connected\n");
             digitalWrite(PIN_STATUS_LED, HIGH);
             lastNetConnected = true;
@@ -74,24 +75,21 @@ void communicationTask(void *pvParameters) {
             lastNetConnected = false;
         }
 
-        // --- SECTION 2: Inbound (Aligned 32-bit Signature & Protocol Echo) ---
+        // --- SECTION 2: Inbound ---
         if (currentNetConnected) {
             while (netClient.available() > 0) {
+                // Now uses the 10ms timeout to avoid locking the task
                 size_t len = netClient.readBytesUntil('\n', inbound.asChars, 255);
                 
-                // Optimized 32-bit validation
                 if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                     
                     inbound.asChars[len] = '\0';
                     LOG_DEBUG("DEBUG: %s\n", inbound.asChars);
                     
-                    // 1. PROTOCOL ECHO (LBServer requirement)
-                    // Echo the received command back as a RECEIVE message
-                    netClient.write(out, 7);              // "RECEIVE"
-                    netClient.write(inbound.asChars + 4, len - 4); // The hex payload
+                    netClient.write(out, 7);              
+                    netClient.write(inbound.asChars + 4, len - 4); 
                     netClient.write("\r\n", 2);
 
-                    // 2. BINARY PARSING
                     lnMsg tx; uint8_t txIdx = 0;
                     char *p = inbound.asChars + 4;
 
@@ -103,7 +101,6 @@ void communicationTask(void *pvParameters) {
                         } else p++;
                     }
 
-                    // 3. DISPATCH & ACK
                     if (txIdx > 0 && xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
                         netClient.write(rsp_ok, 9);
                         LOG_DEBUG("DEBUG: %s", rsp_ok);
@@ -112,9 +109,10 @@ void communicationTask(void *pvParameters) {
             }
         }
 
-        // --- SECTION 3: Outbound (Using Initialized Header) ---
+        // --- SECTION 3: Outbound ---
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
+            // getPacketLen is now linked from the header
             uint8_t pktLen = getPacketLen(&rx);
             static const char hex[] = "0123456789ABCDEF";
             

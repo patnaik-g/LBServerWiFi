@@ -11,6 +11,9 @@ LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
 LocoNetStreamESP32 lnStream(1, LOCONET_PIN_RX, LOCONET_PIN_TX, false, true, &bus);
 
+/*
+ * UTILITY: getPacketLen
+ */
 uint8_t getPacketLen(const lnMsg *p) {
     uint8_t opc = p->data[0];
     switch (opc & 0x60) {
@@ -30,21 +33,24 @@ void setup() {
     unsigned long start = millis();
     while (!Serial && millis() - start < 2000) { delay(10); } 
  
-    lnToNetQueue = xQueueCreate(20, sizeof(lnMsg));
-    netToLnQueue = xQueueCreate(20, sizeof(lnMsg));
+    // Increased queue depth slightly to handle bursty LocoNet traffic
+    lnToNetQueue = xQueueCreate(32, sizeof(lnMsg));
+    netToLnQueue = xQueueCreate(32, sizeof(lnMsg));
 
-    lnStream.start();
+    lnStream.start(); // Restored from original hardware baseline
     parser.onPacket(CALLBACK_FOR_ALL_OPCODES, [](const lnMsg *p) {
         xQueueSend(lnToNetQueue, p, 0); 
     });
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
-    LOG_DEBUG("LBServer v1.5 Initialized\n");
+    LOG_DEBUG("LBServer v1.7.5 Initialized\n");
 }
 
 void loop() {
     lnStream.process();
-    // Core 1 timing critical
-    lnMsg tx;
+    
+    // Core 1 timing critical - Static allocation avoids stack churning
+    static lnMsg tx;
+    
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
         lnStream.send(&tx);
     }
