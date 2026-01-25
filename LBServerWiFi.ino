@@ -50,11 +50,15 @@ void setup() {
 
 void loop() {
     lnStream.process();
-    
-    // Core 1 timing critical - Static allocation avoids stack churning
+
     static lnMsg tx;
-    
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
+        // 1. Send to hardware
         lnStream.send(&tx);
+
+        // 2. Manual Echo
+        // We push a copy back to the RX queue so all clients see the confirmation.
+        // If this causes double-messages later, we know the hardware is echoing.
+        xQueueSend(lnToNetQueue, &tx, 0); 
     }
 }

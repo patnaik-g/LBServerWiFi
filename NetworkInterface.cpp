@@ -62,9 +62,7 @@ void communicationTask(void *pvParameters) {
         }
 
         if (currentNetConnected && !lastNetConnected) {
-            // OPTIMIZATION: Disable Nagle for real-time control
             netClient.setNoDelay(true); 
-            // OPTIMIZATION: Prevent blocking outbound traffic
             netClient.setTimeout(10);   
             
             netClient.write("VERSION ESP32 LocoNet Bridge v1.7.5\r\n", 38);
@@ -75,10 +73,9 @@ void communicationTask(void *pvParameters) {
             lastNetConnected = false;
         }
 
-        // --- SECTION 2: Inbound ---
+        // --- SECTION 2: Inbound (From Network to LocoNet) ---
         if (currentNetConnected) {
             while (netClient.available() > 0) {
-                // Now uses the 10ms timeout to avoid locking the task
                 size_t len = netClient.readBytesUntil('\n', inbound.asChars, 255);
                 
                 if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
@@ -86,10 +83,6 @@ void communicationTask(void *pvParameters) {
                     inbound.asChars[len] = '\0';
                     LOG_DEBUG("DEBUG: %s\n", inbound.asChars);
                     
-                    netClient.write(out, 7);              
-                    netClient.write(inbound.asChars + 4, len - 4); 
-                    netClient.write("\r\n", 2);
-
                     lnMsg tx; uint8_t txIdx = 0;
                     char *p = inbound.asChars + 4;
 
@@ -102,21 +95,20 @@ void communicationTask(void *pvParameters) {
                     }
 
                     if (txIdx > 0 && xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
-                        netClient.write(rsp_ok, 9);
+                        netClient.write(rsp_ok, 9); // Confirms queueing
                         LOG_DEBUG("DEBUG: %s", rsp_ok);
                     }
                 }
             }
         }
 
-        // --- SECTION 3: Outbound ---
+        // --- SECTION 3: Outbound (From LocoNet to Network) ---
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
-            // getPacketLen is now linked from the header
             uint8_t pktLen = getPacketLen(&rx);
             static const char hex[] = "0123456789ABCDEF";
             
-            int pos = 7; 
+            int pos = 7; // Starts after "RECEIVE"
             for (uint8_t i = 0; i < pktLen; i++) {
                 out[pos++] = ' ';
                 out[pos++] = hex[(rx.data[i] >> 4) & 0x0F];
