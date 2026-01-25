@@ -1,3 +1,10 @@
+/*
+ * LBServerWiFi v2.0.0 - Main Orchestrator
+ * PROTOCOL: LBServer (LocoNet-over-TCP)
+ * DESCRIPTION: Asynchronous ESP32 bridge between WiFi/TCP and physical LocoNet.
+ * Separates timing-critical LocoNet processing from network and logging tasks.
+ */
+ 
 #include "NetworkInterface.h"
 #include <LocoNetStreamESP32.h> // Required for consolidated hardware logic
 #include "AsyncDebug.h"
@@ -10,20 +17,6 @@
 LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
 LocoNetStreamESP32 lnStream(1, LOCONET_PIN_RX, LOCONET_PIN_TX, false, true, &bus);
-
-/*
- * UTILITY: getPacketLen
- */
-uint8_t getPacketLen(const lnMsg *p) {
-    uint8_t opc = p->data[0];
-    switch (opc & 0x60) {
-        case 0x00: return 2;
-        case 0x20: return 4;
-        case 0x40: return 6;
-        case 0x60: return p->data[1];
-        default: return 0;
-    }
-}
 
 QueueHandle_t lnToNetQueue;
 QueueHandle_t netToLnQueue;
@@ -45,7 +38,7 @@ void setup() {
         xQueueSend(lnToNetQueue, p, 0); 
     });
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
-    LOG_DEBUG("LBServer v1.7.5 Initialized\n");
+    LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
 }
 
 void loop() {

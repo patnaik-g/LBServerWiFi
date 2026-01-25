@@ -1,29 +1,24 @@
 #ifndef NETWORK_INTERFACE_H
 #define NETWORK_INTERFACE_H
 
-/* Standard and Custom Library Dependencies */
-#include <WiFi.h>          // ESP32 WiFi stack for TCP/IP communication
-#include <ArduinoOTA.h>    // Support for Over-The-Air firmware updates
-#include <LocoNetStream.h> // Required for lnMsg type definition
-#include "WiFiManager.h"   // Custom manager for WiFi provisioning and persistence
+#include <Arduino.h>
+#include <WiFiClient.h>
+#include <WiFiServer.h>
+#include "WiFiManager.h"
+#include "LocoNetStreamESP32.h"
 
-/* UI / Status Mapping - Moved here from LoconetInterface */
-#define PIN_STATUS_LED 2
+#define BRIDGE_VERSION "ESP32 LocoNet Bridge v2.0.0"
 
-/* Global Queue Handles 
- * These queues facilitate asynchronous communication between the 
- * Network Task and the LocoNet Hardware Task.
- */
-extern QueueHandle_t lnToNetQueue; // Outbound traffic: LocoNet hardware -> WiFi client
-extern QueueHandle_t netToLnQueue; // Inbound traffic: WiFi client -> LocoNet hardware
-uint8_t getPacketLen(const lnMsg *p); // Prototype for network-to-ASCII conversion
+// --- QUEUE HANDLES ---
+// These allow the main loop and the network task to talk to each other
+extern QueueHandle_t lnToNetQueue;
+extern QueueHandle_t netToLnQueue;
 
-/*
- * @brief Entry point for the asynchronous network communication task.
- * * Manages the TCP socket, handshaking, and bidirectional message 
- * translation between the LBServer protocol and LocoNet packets.
- * * @param pvParameters FreeRTOS task parameters.
- */
+// --- TASKS ---
 void communicationTask(void *pvParameters);
+
+// --- HARDWARE PIN DEFINITIONS ---
+// (Keep these if you had them here, otherwise ignore)
+#define PIN_STATUS_LED 2
 
 #endif
