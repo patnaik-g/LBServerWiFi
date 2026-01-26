@@ -1,20 +1,20 @@
-# LBServerWiFi v2.0.1 Technical Documentation
+# LBServerWiFi v2.1.0 Technical Documentation
 
 **Protocol Implementation: LBServer (LocoNet-over-TCP)**
 
 ---
 
 ## I. Executive Summary
-LBServerWiFi v2.0.1 is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. The defining advancement of this version is the **Synchronized Multi-Client Architecture**, which isolates timing-critical bit-processing from network overhead and supports **wireless OTA maintenance**.
+LBServerWiFi v2.1.0 is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. This version marks a transition to a **Decoupled Domain Architecture**, where network transport is strictly isolated from protocol logic through functional abstraction and full encapsulation.
 
 ## II. Component Map
 
 | Component | Files | Primary Responsibility |
 | :--- | :--- | :--- |
-| **AsyncDebug** | `AsyncDebug.h/cpp` | Non-blocking, thread-safe logging via FreeRTOS queues. |
-| **WiFiManager** | `WiFiManager.h/cpp` | Manages WiFi connectivity and NVM credentials. |
-| **NetworkInterface** | `NetworkInterface.h/cpp` | Implements the **LBServer protocol** and manages the 3-slot client pool. |
-| **LocoNet Hardware** | `LocoNetStreamESP32` | Handles low-level bit-timing for the LocoNet bus. |
+| **AsyncDebug** | `AsyncDebug.h/cpp` | Non-blocking telemetry via a globally-linked (`extern`) FreeRTOS queue. |
+| **WiFiManager** | `WiFiManager.h/cpp` | Transport Layer: Manages the TCP stack, mDNS, and OTA. Encapsulates the client pool as `private` data. |
+| **NetworkInterface** | `NetworkInterface.h/cpp` | Protocol Layer: Processes LBServer logic via a functional iterator. Hosts optimized hex/buffer helpers. |
+| **LocoNet Hardware** | `LocoNetStreamESP32` | Handles low-level bit-timing for the physical LocoNet bus. |
 | **Main Orchestrator** | `LBServerWiFi.ino` | Coordinates system startup and pins tasks to CPU cores. |
 
 ---
@@ -27,15 +27,15 @@ LBServerWiFi v2.0.1 is a high-performance, multi-client bridge designed for the 
 
 ### 2. Initialization & Tasking
 * **Non-Blocking Startup**: The bridge begins processing LocoNet data immediately upon boot.
-* **Multicore Allocation**: `communicationTask` is pinned to **Core 0**, while LocoNet timing is reserved for **Core 1**.
+* **Multicore Allocation**: `communicationTask` is pinned to **Core 0**, while LocoNet is reserved for **Core 1**.
 
-### 3. Multi-Client Arbitration
+### 3. Multi-Client & Encapsulation
 * **Concurrent Capacity**: Supports up to 3 simultaneous TCP clients.
+* **Functional Abstraction**: `NetworkInterface` processes inbound data via the `forEachActiveClient` iterator, ensuring it has no direct access to internal socket arrays.
 * **Global Echo Loopback**: Commands are echoed back to all clients to ensure state synchronization.
-* **Deterministic Cleanup**: Explicit state tracking identifies and prunes "Half-Open" sockets immediately.
 
 ### 4. Maintenance (OTA)
-* **Wireless Updates**: The bridge supports Over-the-Air updates. To ensure protocol stability, the OTA handler is only active when no network clients are connected.
+* **Wireless Updates**: The bridge supports Over-the-Air updates. To ensure protocol stability, the OTA handler is prioritized when no network clients are active.
 
 ---
 
@@ -60,5 +60,6 @@ LBServerWiFi v2.0.1 is a high-performance, multi-client bridge designed for the 
 
 | Version | Date | Changes |
 | :--- | :--- | :--- |
+| **v2.1.0** | 2026-01-26 | **Architectural Refactor**: Fully encapsulated TCP client pool (moved to `private`); implemented `forEachActiveClient` functional iterator for transport/protocol decoupling; stabilized `AsyncDebug` via `extern` global linkage; promoted `ProtocolBuffer` and helpers to `NetworkInterface.h` for inlining. |
 | **v2.0.1** | 2026-01-26 | Restored OTA functionality; removed dead code from `WiFiManager`; optimized idle LED logic. |
 | **v2.0.0** | 2026-01-25 | Initial multi-client release; dual-core task isolation; LBServer implementation. |
