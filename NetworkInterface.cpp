@@ -1,9 +1,3 @@
-/*
- * LBServerWiFi v2.0.1 - NetworkInterface.cpp
- * PROTOCOL: LBServer (LocoNet-over-TCP)
- * DESCRIPTION: High-performance, multi-client WiFi bridge.
- */
-
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
 
@@ -28,7 +22,7 @@ void communicationTask(void *pvParameters) {
     unsigned long lastBlink = 0;
     bool ledState = true;
 
-    // Initialize Pool via wifiManager
+    // Initialize Pool
     for(int i=0; i<MAX_CLIENTS; i++) {
         wifiManager.clientPool[i] = WiFiClient();
         wifiManager.clientActive[i] = false;
@@ -36,31 +30,8 @@ void communicationTask(void *pvParameters) {
 
     for (;;) {
         // --- 1. NEW CONNECTION HANDLING ---
-        WiFiServer& server = wifiManager.getServer();
-        if (server.hasClient()) {
-            bool assigned = false;
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (!wifiManager.clientActive[i]) {
-                    wifiManager.clientPool[i] = server.available(); 
-                    if (wifiManager.clientPool[i]) { 
-                        wifiManager.clientPool[i].setNoDelay(true);
-                        wifiManager.clientPool[i].setTimeout(10);
-                        wifiManager.clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
-                        
-                        LOG_DEBUG(">>> Client [%d] Connected from %s\n", i, 
-                                  wifiManager.clientPool[i].remoteIP().toString().c_str());
-                        wifiManager.clientActive[i] = true; 
-                        assigned = true;
-                    }
-                    break;
-                }
-            }
-            if (!assigned) {
-                WiFiClient reject = server.available();
-                LOG_DEBUG(">>> Rejected %s: Pool Full\n", reject.remoteIP().toString().c_str());
-                reject.stop();
-            }
-        }
+        // Incremental Refactor: Logic moved into WiFiManager
+        wifiManager.checkNewConnections();
 
         // --- 2. INBOUND PROCESSING (Network -> LocoNet Queue) ---
         bool anyActive = false;
@@ -102,7 +73,7 @@ void communicationTask(void *pvParameters) {
             anyActive = true;
         }
         
-        // LED Logic & OTA Handler
+        // Inverted LED Logic & OTA Handler
         if (!anyActive) {
             digitalWrite(PIN_STATUS_LED, HIGH);
             ledState = true;
