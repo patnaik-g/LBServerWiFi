@@ -1,5 +1,4 @@
 /*
- * LBServerWiFi v2.0.0 - NetworkInterface.cpp
  * PROTOCOL: LBServer (LocoNet-over-TCP)
  * DESCRIPTION: High-performance, multi-client WiFi bridge implementing the LBServer 
  * protocol for seamless integration with JMRI and other LocoNet controllers.
@@ -169,6 +168,8 @@ void communicationTask(void *pvParameters) {
         if (!anyActive) {
             digitalWrite(PIN_STATUS_LED, HIGH);
             ledState = true;
+            // Allow OTA only when no clients are connected
+            ArduinoOTA.handle();
         } else {
             if (millis() - lastBlink > 500) {
                 ledState = !ledState;

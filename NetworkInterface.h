@@ -7,7 +7,7 @@
 #include "WiFiManager.h"
 #include "LocoNetStreamESP32.h"
 
-#define BRIDGE_VERSION "ESP32 LocoNet Bridge v2.0.0"
+#define BRIDGE_VERSION "ESP32 LocoNet Bridge v2.0.1"
 
 // --- QUEUE HANDLES ---
 // These allow the main loop and the network task to talk to each other

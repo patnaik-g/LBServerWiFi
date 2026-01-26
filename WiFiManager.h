@@ -20,9 +20,7 @@ class WiFiManager {
 public:
     WiFiManager(const char* hostname, uint16_t port = DEFAULT_TCP_PORT, WiFiEventCallback callback = nullptr);
     void begin();
-    WiFiClient& getClient();
     WiFiServer& getServer();
-    void waitForClient();
 
 private:
     static void WiFiEvent(WiFiEvent_t event);
@@ -32,7 +30,6 @@ private:
     const char* hostname;
     uint16_t port;
     WiFiServer server;
-    WiFiClient client;
     Preferences prefs;
     WebServer webServer = WebServer(80);
     static WiFiEventCallback eventCallback;

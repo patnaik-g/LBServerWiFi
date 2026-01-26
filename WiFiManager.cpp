@@ -143,13 +143,4 @@ void WiFiManager::startAPMode() {
   }
 }
 
-WiFiClient& WiFiManager::getClient() { return client; }
 WiFiServer& WiFiManager::getServer() { return server; }
-void WiFiManager::waitForClient() {
-  while (!(client = server.available())) {
-    ArduinoOTA.handle();
-    delay(500);
-    LOG_DEBUG(".");
-  }
-  LOG_DEBUG(" Client connected!\n");
-}
