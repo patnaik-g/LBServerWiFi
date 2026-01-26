@@ -22,6 +22,7 @@ QueueHandle_t lnToNetQueue;
 QueueHandle_t netToLnQueue;
 
 void setup() {
+    btStop();
     Serial.begin(115200);
     unsigned long start = millis();
     while (!Serial && millis() - start < 2000) { delay(10); }

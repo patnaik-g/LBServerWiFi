@@ -74,6 +74,10 @@ void communicationTask(void *pvParameters) {
     // "SEND" signature in little-endian hex (ASCII: S=0x53, E=0x45, N=0x4E, D=0x44)
     const uint32_t SIG_SEND = 0x444E4553; 
 
+    // MINIMAL EDIT: Variables for inverted LED logic
+    unsigned long lastBlink = 0;
+    bool ledState = true;
+
     // Init Pool and Flags
     for(int i=0; i<MAX_CLIENTS; i++) {
         clientPool[i] = WiFiClient();
@@ -161,7 +165,17 @@ void communicationTask(void *pvParameters) {
             anyActive = true;
         }
         
-        digitalWrite(PIN_STATUS_LED, anyActive ? HIGH : LOW);
+        // MINIMAL EDIT: Inverted LED Logic (Steady Idle, Blink Connected)
+        if (!anyActive) {
+            digitalWrite(PIN_STATUS_LED, HIGH);
+            ledState = true;
+        } else {
+            if (millis() - lastBlink > 500) {
+                ledState = !ledState;
+                digitalWrite(PIN_STATUS_LED, ledState);
+                lastBlink = millis();
+            }
+        }
 
         // --- 3. OUTBOUND PROCESSING (LocoNet Queue -> Broadcast) ---
         // This handles both real traffic from the rails AND the "Echo" loopback

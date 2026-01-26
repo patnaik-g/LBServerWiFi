@@ -34,6 +34,7 @@ void WiFiManager::begin() {
 bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   WiFi.setHostname(hostname);
   WiFi.begin(ssid.c_str(), password.c_str());
+  WiFi.setTxPower(WIFI_POWER_11dBm);
   LOG_DEBUG("Connecting to WiFi: %s\n", ssid.c_str());
 
   unsigned long start = millis();
