@@ -5,23 +5,16 @@
 
 /* Configuration */
 #define DEBUG_QUEUE_DEPTH 32
-#define DEBUG_MSG_LEN 128
+#define DEBUG_MSG_LEN 256 // Increased to handle long LocoNet packets
 
 namespace Debug {
-    /**
-     * @brief Initializes the debug queue and starts the background logging task.
-     * Call this once in setup().
-     */
-    void begin();
+    // Explicitly declare the queue as extern for global linkage
+    extern QueueHandle_t debugQueue;
 
-    /**
-     * @brief Thread-safe logging function.
-     * Formats the string and pushes it to the background queue.
-     */
+    void begin();
     void log(const char* fmt, ...);
 }
 
-// Redirect existing macro to the new async engine
 #define LOG_DEBUG(fmt, ...) Debug::log(fmt, ##__VA_ARGS__)
 
 #endif
