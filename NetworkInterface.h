@@ -1,3 +1,12 @@
+/**
+ * @file NetworkInterface
+ * @brief LocoNet-over-TCP Protocol Handler
+ * * Implements the LBServer protocol logic. This module is responsible for 
+ * translating between ASCII hex network packets and binary LocoNet messages, 
+ * leveraging the WiFiManager for transport and the AsyncDebug engine for 
+ * telemetry.
+ */
+
 #ifndef NETWORK_INTERFACE_H
 #define NETWORK_INTERFACE_H
 

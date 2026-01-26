@@ -1,3 +1,11 @@
+/**
+ * @file WiFiManager
+ * @brief Transport Layer Orchestrator
+ * * Manages the TCP server lifecycle, WiFi connectivity, and system maintenance 
+ * (OTA/mDNS). Implements an opaque client pool using a functional iterator 
+ * (forEachActiveClient) to maintain protocol agnosticism.
+ */
+
 #ifndef WIFI_MANAGER_H
 #define WIFI_MANAGER_H
 
@@ -8,6 +16,7 @@
 #include <TelnetStream.h>
 #include <ESPmDNS.h>
 #include "AsyncDebug.h"
+#include <functional>
 
 #define MDNS_SERVICE_NAME "lbserver"
 #define MDNS_SERVICE_PROTO "tcp"
@@ -23,9 +32,7 @@ public:
   void checkNewConnections();
   void loopMaintenance(bool anyActive);
   void broadcast(const char* data, size_t len); // NEW: Outbound abstraction
-
-  WiFiClient clientPool[MAX_CLIENTS];
-  bool clientActive[MAX_CLIENTS];
+  void forEachActiveClient(std::function<void(WiFiClient&, int index)> callback);
 
 private:
   const char* hostname;
@@ -36,7 +43,8 @@ private:
   unsigned long lastBlink = 0; // Track LED timing
   bool ledState = true;
   static WiFiEventCallback eventCallback;
-
+  WiFiClient clientPool[MAX_CLIENTS];
+  bool clientActive[MAX_CLIENTS];
   bool connectToWiFi(const String& ssid, const String& password);
   void startAPMode();
 };

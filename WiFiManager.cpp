@@ -1,3 +1,11 @@
+/**
+ * @file WiFiManager
+ * @brief Transport Layer Orchestrator
+ * * Manages the TCP server lifecycle, WiFi connectivity, and system maintenance 
+ * (OTA/mDNS). Implements an opaque client pool using a functional iterator 
+ * (forEachActiveClient) to maintain protocol agnosticism.
+ */
+
 #include "WiFiManager.h"
 #include "NetworkInterface.h" 
 
@@ -101,6 +109,19 @@ void WiFiManager::loopMaintenance(bool anyActive) {
       digitalWrite(PIN_STATUS_LED, ledState);
       lastBlink = millis();
     }
+  }
+}
+
+void WiFiManager::forEachActiveClient(std::function<void(WiFiClient&, int index)> callback) {
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (!clientActive[i]) continue;
+    if (!clientPool[i].connected()) {
+      LOG_DEBUG(">>> Client [%d] Disconnected\n", i);
+      clientPool[i].stop();
+      clientActive[i] = false;
+      continue;
+    }
+    callback(clientPool[i], i); // Execute the protocol logic
   }
 }
 

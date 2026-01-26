@@ -1,9 +1,11 @@
-/*
- * LBServerWiFi v2.1.0 - NetworkInterface.cpp
- * DESCRIPTION: High-performance, multi-client WiFi bridge.
- * Refactor: Maintenance and Socket logic moved to WiFiManager.
+/**
+ * @file NetworkInterface
+ * @brief LocoNet-over-TCP Protocol Handler
+ * * Implements the LBServer protocol logic. This module is responsible for 
+ * translating between ASCII hex network packets and binary LocoNet messages, 
+ * leveraging the WiFiManager for transport and the AsyncDebug engine for 
+ * telemetry.
  */
-
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
 
@@ -23,7 +25,7 @@ void communicationTask(void *pvParameters) {
     rsp_ok[4] = ' '; rsp_ok[5] = 'O'; rsp_ok[6] = 'K'; 
     rsp_ok[7] = '\r'; rsp_ok[8] = '\n'; rsp_ok[9] = '\0';
     
-    const uint32_t SIG_SEND = 0x444E4553; 
+    const uint32_t SIG_SEND = 0x444E4553; // "SEND"
 
     for (;;) {
         // --- 1. NEW CONNECTION HANDLING ---
@@ -32,11 +34,12 @@ void communicationTask(void *pvParameters) {
         // --- 2. INBOUND PROCESSING (Network -> LocoNet Queue) ---
         bool anyActive = false;
         
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (!wifiManager.clientActive[i]) continue; 
-
-            while (wifiManager.clientPool[i].available() > 0) {
-                size_t len = wifiManager.clientPool[i].readBytesUntil('\n', inbound.asChars, 255);
+        // Swapped explicit for-loop for functional iterator
+        wifiManager.forEachActiveClient([&](WiFiClient& client, int i) {
+            anyActive = true;
+            
+            while (client.available() > 0) {
+                size_t len = client.readBytesUntil('\n', inbound.asChars, 255);
                 
                 if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                     inbound.asChars[len] = '\0';
@@ -53,24 +56,14 @@ void communicationTask(void *pvParameters) {
                     }
 
                     if (txIdx > 0 && xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
-                        wifiManager.clientPool[i].write(rsp_ok, 9); 
+                        client.write(rsp_ok, 9); 
                         LOG_DEBUG("Ack: %s", rsp_ok);
                     }
                 }
             }
-            
-            if (!wifiManager.clientPool[i].connected()) {
-                LOG_DEBUG(">>> Client [%d] Disconnected\n", i);
-                wifiManager.clientPool[i].stop(); 
-                wifiManager.clientActive[i] = false; 
-                continue;
-            }
-            
-            anyActive = true;
-        }
+        });
         
         // --- 3. MAINTENANCE & HEARTBEAT ---
-        // Incremental Refactor: Encapsulated LED and OTA logic
         wifiManager.loopMaintenance(anyActive);
 
         // --- 4. OUTBOUND PROCESSING (LocoNet Queue -> Broadcast) ---

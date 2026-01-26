@@ -1,3 +1,11 @@
+/**
+ * @file AsyncDebug
+ * @brief Asynchronous Logging Engine
+ * * Provides a thread-safe, global logging service using a FreeRTOS queue. 
+ * Decouples time-sensitive communication tasks from relatively slow Serial 
+ * and Telnet I/O, preventing logging latency from affecting LocoNet timing.
+ */
+
 #ifndef ASYNC_DEBUG_H
 #define ASYNC_DEBUG_H
 
