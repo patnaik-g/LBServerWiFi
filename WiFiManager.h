@@ -1,38 +1,40 @@
-#ifndef WIFIMANAGER_H
-#define WIFIMANAGER_H
+#ifndef WIFI_MANAGER_H
+#define WIFI_MANAGER_H
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
 #include <ArduinoOTA.h>
-#include <ESPmDNS.h>
 #include <TelnetStream.h>
+#include <ESPmDNS.h>
 #include "AsyncDebug.h"
 
-// Network & mDNS Configuration
-#define DEFAULT_TCP_PORT 1234
-#define MDNS_SERVICE_NAME "loconetovertcpserver"
+#define MDNS_SERVICE_NAME "lbserver"
 #define MDNS_SERVICE_PROTO "tcp"
+#define MAX_CLIENTS 3
 
-typedef void (*WiFiEventCallback)();
+typedef void (*WiFiEventCallback)(WiFiEvent_t event);
 
 class WiFiManager {
 public:
-    WiFiManager(const char* hostname, uint16_t port = DEFAULT_TCP_PORT, WiFiEventCallback callback = nullptr);
-    void begin();
-    WiFiServer& getServer();
+  WiFiManager(const char* hostname, uint16_t port = 1234, WiFiEventCallback callback = nullptr);
+  void begin();
+  WiFiServer& getServer();
+  
+  // Relocated from NetworkInterface for incremental refactor
+  WiFiClient clientPool[MAX_CLIENTS];
+  bool clientActive[MAX_CLIENTS];
 
 private:
-    static void WiFiEvent(WiFiEvent_t event);
-    void startAPMode();
-    bool connectToWiFi(const String &ssid, const String &password);
+  const char* hostname;
+  uint16_t port;
+  WiFiServer server;
+  WebServer webServer;
+  Preferences prefs;
+  static WiFiEventCallback eventCallback;
 
-    const char* hostname;
-    uint16_t port;
-    WiFiServer server;
-    Preferences prefs;
-    WebServer webServer = WebServer(80);
-    static WiFiEventCallback eventCallback;
+  bool connectToWiFi(const String& ssid, const String& password);
+  void startAPMode();
 };
 
 #endif

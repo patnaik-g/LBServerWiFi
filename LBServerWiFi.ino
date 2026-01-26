@@ -21,6 +21,8 @@ LocoNetStreamESP32 lnStream(1, LOCONET_PIN_RX, LOCONET_PIN_TX, false, true, &bus
 QueueHandle_t lnToNetQueue;
 QueueHandle_t netToLnQueue;
 
+WiFiManager wifiManager("LBServer", 1234);
+
 void setup() {
     btStop();
     Serial.begin(115200);
