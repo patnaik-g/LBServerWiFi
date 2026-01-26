@@ -1,3 +1,9 @@
+/*
+ * LBServerWiFi v2.1.0 - NetworkInterface.cpp
+ * DESCRIPTION: High-performance, multi-client WiFi bridge.
+ * Refactor: Maintenance and Socket logic moved to WiFiManager.
+ */
+
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
 
@@ -19,10 +25,7 @@ void communicationTask(void *pvParameters) {
     
     const uint32_t SIG_SEND = 0x444E4553; 
 
-    unsigned long lastBlink = 0;
-    bool ledState = true;
-
-    // Initialize Pool
+    // Initial pool setup
     for(int i=0; i<MAX_CLIENTS; i++) {
         wifiManager.clientPool[i] = WiFiClient();
         wifiManager.clientActive[i] = false;
@@ -30,7 +33,6 @@ void communicationTask(void *pvParameters) {
 
     for (;;) {
         // --- 1. NEW CONNECTION HANDLING ---
-        // Incremental Refactor: Logic moved into WiFiManager
         wifiManager.checkNewConnections();
 
         // --- 2. INBOUND PROCESSING (Network -> LocoNet Queue) ---
@@ -73,20 +75,11 @@ void communicationTask(void *pvParameters) {
             anyActive = true;
         }
         
-        // Inverted LED Logic & OTA Handler
-        if (!anyActive) {
-            digitalWrite(PIN_STATUS_LED, HIGH);
-            ledState = true;
-            ArduinoOTA.handle(); 
-        } else {
-            if (millis() - lastBlink > 500) {
-                ledState = !ledState;
-                digitalWrite(PIN_STATUS_LED, ledState);
-                lastBlink = millis();
-            }
-        }
+        // --- 3. MAINTENANCE & HEARTBEAT ---
+        // Incremental Refactor: Encapsulated LED and OTA logic
+        wifiManager.loopMaintenance(anyActive);
 
-        // --- 3. OUTBOUND PROCESSING (LocoNet Queue -> Broadcast) ---
+        // --- 4. OUTBOUND PROCESSING (LocoNet Queue -> Broadcast) ---
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);

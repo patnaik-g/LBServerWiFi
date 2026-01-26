@@ -1,5 +1,5 @@
 #include "WiFiManager.h"
-#include "NetworkInterface.h" // Required for BRIDGE_VERSION and LOG_DEBUG
+#include "NetworkInterface.h" 
 
 WiFiEventCallback WiFiManager::eventCallback = nullptr;
 
@@ -62,8 +62,6 @@ void WiFiManager::checkNewConnections() {
         if (clientPool[i]) { 
           clientPool[i].setNoDelay(true);
           clientPool[i].setTimeout(10);
-          
-          // Using the version defined in NetworkInterface.h
           clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
           
           LOG_DEBUG(">>> Client [%d] Connected from %s\n", i, clientPool[i].remoteIP().toString().c_str());
@@ -77,6 +75,26 @@ void WiFiManager::checkNewConnections() {
       WiFiClient reject = server.available();
       LOG_DEBUG(">>> Rejected %s: Pool Full\n", reject.remoteIP().toString().c_str());
       reject.stop();
+    }
+  }
+}
+
+/**
+ * Encapsulated Maintenance & Heartbeat
+ * Handles OTA updates and LED status based on network activity.
+ */
+void WiFiManager::loopMaintenance(bool anyActive) {
+  if (!anyActive) {
+    // Steady LED and OTA available when idle
+    digitalWrite(PIN_STATUS_LED, HIGH);
+    ledState = true;
+    ArduinoOTA.handle(); 
+  } else {
+    // Blink LED every 500ms when network is active
+    if (millis() - lastBlink > 500) {
+      ledState = !ledState;
+      digitalWrite(PIN_STATUS_LED, ledState);
+      lastBlink = millis();
     }
   }
 }

@@ -20,8 +20,9 @@ public:
   WiFiManager(const char* hostname, uint16_t port = 1234, WiFiEventCallback callback = nullptr);
   void begin();
   WiFiServer& getServer();
-  
-  // Relocated from NetworkInterface for incremental refactor
+  void checkNewConnections();
+  void loopMaintenance(bool anyActive); // New maintenance method
+
   WiFiClient clientPool[MAX_CLIENTS];
   bool clientActive[MAX_CLIENTS];
 
@@ -31,6 +32,8 @@ private:
   WiFiServer server;
   WebServer webServer;
   Preferences prefs;
+  unsigned long lastBlink = 0; // Track LED timing
+  bool ledState = true;
   static WiFiEventCallback eventCallback;
 
   bool connectToWiFi(const String& ssid, const String& password);
