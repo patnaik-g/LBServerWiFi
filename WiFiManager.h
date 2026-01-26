@@ -21,7 +21,8 @@ public:
   void begin();
   WiFiServer& getServer();
   void checkNewConnections();
-  void loopMaintenance(bool anyActive); // New maintenance method
+  void loopMaintenance(bool anyActive);
+  void broadcast(const char* data, size_t len); // NEW: Outbound abstraction
 
   WiFiClient clientPool[MAX_CLIENTS];
   bool clientActive[MAX_CLIENTS];

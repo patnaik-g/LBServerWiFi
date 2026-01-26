@@ -25,12 +25,6 @@ void communicationTask(void *pvParameters) {
     
     const uint32_t SIG_SEND = 0x444E4553; 
 
-    // Initial pool setup
-    for(int i=0; i<MAX_CLIENTS; i++) {
-        wifiManager.clientPool[i] = WiFiClient();
-        wifiManager.clientActive[i] = false;
-    }
-
     for (;;) {
         // --- 1. NEW CONNECTION HANDLING ---
         wifiManager.checkNewConnections();
@@ -93,12 +87,8 @@ void communicationTask(void *pvParameters) {
             }
             out[pos++] = '\r'; out[pos++] = '\n';
             
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (wifiManager.clientActive[i] && wifiManager.clientPool[i].connected()) {
-                    wifiManager.clientPool[i].write(out, pos);
-                }
-            }
-            
+            wifiManager.broadcast(out, pos);            
+
             out[pos] = '\0';
             LOG_DEBUG("BCAST: %s", out);
         }

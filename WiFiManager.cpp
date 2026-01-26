@@ -6,6 +6,11 @@ WiFiEventCallback WiFiManager::eventCallback = nullptr;
 WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback callback)
   : hostname(hostname), server(port), port(port) {
   eventCallback = callback;
+  
+  for(int i=0; i<MAX_CLIENTS; i++) {
+    clientPool[i] = WiFiClient();
+    clientActive[i] = false;
+  }
 }
 
 void WiFiManager::begin() {
@@ -95,6 +100,17 @@ void WiFiManager::loopMaintenance(bool anyActive) {
       ledState = !ledState;
       digitalWrite(PIN_STATUS_LED, ledState);
       lastBlink = millis();
+    }
+  }
+}
+
+/*
+ * Broadcasts a formatted message to all active TCP clients.
+ */
+void WiFiManager::broadcast(const char* data, size_t len) {
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (clientActive[i] && clientPool[i].connected()) {
+      clientPool[i].write(data, len);
     }
   }
 }
