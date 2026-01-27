@@ -1,6 +1,7 @@
 .temp/
 build/
 libraries/
+state.tar
 *.bin
 *.elf
 *.hex
