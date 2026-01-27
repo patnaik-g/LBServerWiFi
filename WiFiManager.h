@@ -18,7 +18,7 @@
 #include "AsyncDebug.h"
 #include <functional>
 
-#define MDNS_SERVICE_NAME "lbserver"
+#define MDNS_SERVICE_NAME "loconetovertcpserver"
 #define MDNS_SERVICE_PROTO "tcp"
 #define MAX_CLIENTS 3
 
