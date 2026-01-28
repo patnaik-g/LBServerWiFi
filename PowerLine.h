@@ -8,12 +8,14 @@ class PowerLine {
   private:
     Bounce debouncer;
     int pin;
+    TaskHandle_t taskHandle;
+    
+    // FreeRTOS Task Wrapper
+    static void task(void* param);
 
   public:
     PowerLine();
     void begin(int p);
-    bool update(); // Now returns TRUE if state changed
-    bool isOn();
 };
 
 #endif

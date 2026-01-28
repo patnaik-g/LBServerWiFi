@@ -1,9 +1,6 @@
 /**
  * @file WiFiManager
  * @brief Transport Layer Orchestrator
- * * Manages the TCP server lifecycle, WiFi connectivity, and system maintenance 
- * (OTA/mDNS). Implements an opaque client pool using a functional iterator 
- * (forEachActiveClient) to maintain protocol agnosticism.
  */
 
 #include "WiFiManager.h"
@@ -11,10 +8,9 @@
 
 WiFiEventCallback WiFiManager::eventCallback = nullptr;
 
-WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback callback)
+WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback callback) 
   : hostname(hostname), server(port), port(port) {
   eventCallback = callback;
-  
   for(int i=0; i<MAX_CLIENTS; i++) {
     clientPool[i] = WiFiClient();
     clientActive[i] = false;
@@ -24,10 +20,38 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
 
+  // --- BOOT MENU ---
+  // A clean, software-only way to reset settings without buttons.
+  LOG_DEBUG("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...\n");
+  
+  unsigned long t = millis();
+  while (millis() - t < 2000) {
+      if (Serial.available()) {
+          char c = Serial.read();
+          if (c == 'w' || c == 'W') {
+              LOG_DEBUG("\n!!! WIPE COMMAND RECEIVED !!!\n");
+              LOG_DEBUG("Clearing preferences...\n");
+              prefs.clear();
+              prefs.end();
+              
+              // Visual Confirmation (Rapid Blink)
+              for(int i=0; i<10; i++) {
+                  digitalWrite(PIN_STATUS_LED, HIGH); delay(50);
+                  digitalWrite(PIN_STATUS_LED, LOW);  delay(50);
+              }
+              LOG_DEBUG("Restarting...\n");
+              ESP.restart();
+          }
+      }
+      delay(10);
+  }
+  LOG_DEBUG("[BOOT] Continuing...\n");
+
+  // --- NORMAL STARTUP ---
   String ssid = prefs.getString("ssid", "");
   String password = prefs.getString("password", "");
-  
   String host = prefs.getString("hostname", this->hostname); 
+  
   this->hostname = strdup(host.c_str());
 
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
@@ -41,14 +65,15 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   WiFi.setHostname(hostname);
   WiFi.begin(ssid.c_str(), password.c_str());
   WiFi.setTxPower(WIFI_POWER_11dBm);
-  LOG_DEBUG("Connecting to WiFi: %s\n", ssid.c_str());
 
+  LOG_DEBUG("Connecting to WiFi: %s\n", ssid.c_str());
+  
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(500);
     LOG_DEBUG(".");
   }
-
+  
   if (WiFi.status() == WL_CONNECTED) {
     LOG_DEBUG("\n-----------------------------------\n");
     LOG_DEBUG("WiFi Connected!\n");
@@ -58,11 +83,14 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
     
     ArduinoOTA.begin();
     TelnetStream.begin();
+
     while (!MDNS.begin(hostname)) { delay(500); }
     MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
+    
     server.begin();
     return true;
   }
+  
   return false;
 }
 
@@ -71,12 +99,11 @@ void WiFiManager::checkNewConnections() {
     bool assigned = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
       if (!clientActive[i]) {
-        clientPool[i] = server.available(); 
+        clientPool[i] = server.available();
         if (clientPool[i]) { 
           clientPool[i].setNoDelay(true);
           clientPool[i].setTimeout(10);
           clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
-          
           LOG_DEBUG(">>> Client [%d] Connected from %s\n", i, clientPool[i].remoteIP().toString().c_str());
           clientActive[i] = true; 
           assigned = true;
@@ -84,6 +111,7 @@ void WiFiManager::checkNewConnections() {
         break;
       }
     }
+
     if (!assigned) {
       WiFiClient reject = server.available();
       LOG_DEBUG(">>> Rejected %s: Pool Full\n", reject.remoteIP().toString().c_str());
@@ -92,16 +120,12 @@ void WiFiManager::checkNewConnections() {
   }
 }
 
-/**
- * Encapsulated Maintenance & Heartbeat
- * Handles OTA updates and LED status based on network activity.
- */
 void WiFiManager::loopMaintenance(bool anyActive) {
   if (!anyActive) {
     // Steady LED and OTA available when idle
     digitalWrite(PIN_STATUS_LED, HIGH);
     ledState = true;
-    ArduinoOTA.handle(); 
+    ArduinoOTA.handle();   
   } else {
     // Blink LED every 500ms when network is active
     if (millis() - lastBlink > 500) {
@@ -115,19 +139,18 @@ void WiFiManager::loopMaintenance(bool anyActive) {
 void WiFiManager::forEachActiveClient(std::function<void(WiFiClient&, int index)> callback) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (!clientActive[i]) continue;
+    
     if (!clientPool[i].connected()) {
       LOG_DEBUG(">>> Client [%d] Disconnected\n", i);
       clientPool[i].stop();
       clientActive[i] = false;
       continue;
     }
-    callback(clientPool[i], i); // Execute the protocol logic
+    
+    callback(clientPool[i], i);
   }
 }
 
-/*
- * Broadcasts a formatted message to all active TCP clients.
- */
 void WiFiManager::broadcast(const char* data, size_t len) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clientActive[i] && clientPool[i].connected()) {
@@ -138,17 +161,17 @@ void WiFiManager::broadcast(const char* data, size_t len) {
 
 void WiFiManager::startAPMode() {
   LOG_DEBUG("Starting AP Mode...\n");
-  WiFi.softAP(hostname); 
-
+  WiFi.softAP(hostname);
+  
   webServer.on("/", [this]() {
     webServer.send(200, "text/html", "<h2>WiFi Setup</h2><form action='/save' method='POST'>SSID: <input type='text' name='ssid'><br>Password: <input type='password' name='password'><br>Hostname: <input type='text' name='hostname' value='" + String(hostname) + "'><br><input type='submit' value='Save'></form>");
   });
-
+  
   webServer.on("/save", [this]() {
     String ssid = webServer.arg("ssid");
     String password = webServer.arg("password");
     String hostname = webServer.arg("hostname");
-
+    
     if (ssid.length() > 0 && password.length() > 0 && hostname.length() > 0) {
       prefs.putString("ssid", ssid);
       prefs.putString("password", password);
@@ -158,7 +181,7 @@ void WiFiManager::startAPMode() {
       ESP.restart();
     }
   });
-
+  
   webServer.begin();
   while (true) {
     webServer.handleClient();

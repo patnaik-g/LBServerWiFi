@@ -1,9 +1,3 @@
-/**
- * @file NetworkInterface
- * @brief LocoNet-over-TCP Protocol Handler
- * * Implements the LBServer protocol logic.
- */
-
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
 #include "PowerLine.h"
@@ -31,23 +25,17 @@ void communicationTask(void *pvParameters) {
     const uint32_t SIG_SEND = 0x444E4553; // "SEND"
 
     for (;;) {
-        // --- 1. NEW CONNECTION HANDLING ---
         wifiManager.checkNewConnections();
 
-        // --- 2. INBOUND PROCESSING (Network -> LocoNet Queue) ---
         bool anyActive = false;
-
         wifiManager.forEachActiveClient([&](WiFiClient& client, int i) {
             anyActive = true;
             
             while (client.available() > 0) {
-                // 1. CONSUME: Read bytes to clear TCP buffer
                 size_t len = client.readBytesUntil('\n', inbound.asChars, 255);
                 
-                // 2. GATE: Check Power BEFORE parsing
-                if (powerMonitor.isOn()) {
-                    
-                    // 3. PARSE: Check for "SEND" command
+                // GATE: Check Global Variable
+                if (g_PowerState) {
                     if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                         inbound.asChars[len] = '\0';
                         LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
@@ -57,7 +45,6 @@ void communicationTask(void *pvParameters) {
                         
                         while (p < (inbound.asChars + len) && txIdx < sizeof(tx.data)) {
                             if (*p <= 32) { p++; continue; }
-                            
                             if (*p && *(p + 1)) {
                                 tx.data[txIdx++] = fastHexToByte(*p, *(p + 1));
                                 p += 2;
@@ -70,14 +57,11 @@ void communicationTask(void *pvParameters) {
                         }
                     }
                 }
-                // If Power OFF: Bytes were consumed but ignored completely.
             }
         });
 
-        // --- 3. MAINTENANCE & HEARTBEAT ---
         wifiManager.loopMaintenance(anyActive);
 
-        // --- 4. OUTBOUND PROCESSING (LocoNet Queue -> Broadcast) ---
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);
