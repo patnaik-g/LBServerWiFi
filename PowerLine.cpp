@@ -10,7 +10,10 @@ void PowerLine::begin(int p) {
   debouncer.interval(50); // 50ms debounce
 }
 
+bool PowerLine::update() {
+  return debouncer.update();
+}
+
 bool PowerLine::isOn() {
-  debouncer.update();
   return (debouncer.read() == HIGH);
 }

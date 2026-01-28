@@ -45,35 +45,33 @@ void setup() {
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
 
     powerMonitor.begin(PIN_POWER_MONITOR);
-
+    
+    // Initial Status Report
+    // Note: Bounce2 initializes state on attach, so isOn() works immediately.
     LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
+    LOG_DEBUG("Power Status: %s\n", powerMonitor.isOn() ? "ON" : "OFF");
 }
 
 void loop() {
     lnStream.process();
 
-    // Power State Monitoring
-    // Update debouncer every cycle and check for transitions
-    bool currentPower = powerMonitor.isOn();
-    static bool lastPower = false;
-
-    if (currentPower != lastPower) {
+    // Cleaned up Power Monitoring
+    // update() returns true only on transition
+    if (powerMonitor.update()) {
+        bool currentPower = powerMonitor.isOn();
         LOG_DEBUG("Power Status: %s\n", currentPower ? "ON" : "OFF");
-        lastPower = currentPower;
+
+        // Inject "Track Power OFF" (0x82) on ANY layout transition
+        static const lnMsg powerOffMsg = { {0x82, 0x7D} };
+        xQueueSend(lnToNetQueue, (void *)&powerOffMsg, 0);
     }
 
     static lnMsg tx;
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
-        // Gated Execution: Only process if Power is ON
-        if (currentPower) {
-            // 1. Send to hardware
+        // Gated Execution: Only drive hardware if Power is ON
+        if (powerMonitor.isOn()) {
             lnStream.send(&tx);
-
-            // 2. Manual Echo
-            // We push a copy back to the RX queue so all clients see the confirmation.
-            // If this causes double-messages later, we know the hardware is echoing.
-            xQueueSend(lnToNetQueue, &tx, 0);
+            xQueueSend(lnToNetQueue, &tx, 0); // Manual Echo
         }
-        // If OFF: Implicitly discard the message (do nothing)
     }
 }

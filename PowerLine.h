@@ -12,6 +12,7 @@ class PowerLine {
   public:
     PowerLine();
     void begin(int p);
+    bool update(); // Now returns TRUE if state changed
     bool isOn();
 };
 
