@@ -10,16 +10,12 @@
 #include "WiFiManager.h" 
 #include "LocoNetStreamESP32.h"
 
-#define BRIDGE_VERSION "2.0.1"
+#define BRIDGE_VERSION "2.3.0"
 #define PIN_STATUS_LED 2
 
-// --- MAINTENANCE FLAGS ---
-// Uncomment the line below to build a "Wiper" firmware.
-// When defined, the chip will wipe WiFi settings on boot and then HALT.
-// #define RESET_WIFI_SETTINGS 
-
-// Global Shared State
-extern volatile bool g_PowerState; 
+// --- GLOBAL STATE ---
+extern volatile bool g_SystemPower; // Defined in PowerLine.cpp
+extern volatile bool g_TrackPower;  // Defined in PowerLine.cpp
 
 extern QueueHandle_t lnToNetQueue;
 extern QueueHandle_t netToLnQueue;
@@ -51,5 +47,4 @@ static inline uint8_t getPacketLen(const lnMsg *p) {
 }
 
 void communicationTask(void *pvParameters);
-
 #endif

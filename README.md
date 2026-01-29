@@ -1,4 +1,4 @@
-# LBServerWiFi v2.0.1
+# LBServerWiFi v2.3.0
 
 **A high-performance, asynchronous WiFi-to-LocoNet bridge for the ESP32 implementing the LBServer protocol.**
 
@@ -7,6 +7,7 @@ LBServerWiFi enables model railroad control software (e.g., JMRI, RocRail) to co
 
 ## Key Features
 * **Full LBServer Implementation**: Support for the [LBServer protocol](https://loconetovertcp.sourceforge.net/Server/index.html#lbserver) (LocoNet-over-TCP) to ensure seamless integration with modern control software.
+* **Automatic Idle Power-Off**: Monitors LocoNet and WiFi activity to automatically turn off track power after 15 minutes of inactivity.
 * **Multi-Client Concurrency**: Synchronized support for up to 3 simultaneous TCP connections, allowing instances of JMRI to operate at once.
 * **OTA Updates**: Integrated Over-the-Air (OTA) support for wireless firmware updates when the system is idle.
 * **Dual-Core Task Isolation**: Strategic pinning of time-critical LocoNet bit-processing to Core 1, while handling all network I/O and logging on Core 0.
