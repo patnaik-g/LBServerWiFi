@@ -9,7 +9,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "WiFiManager.h" 
-#include "LocoNetStreamESP32.h"
+#include "LocoNetStreamESP32
 
 #define BRIDGE_VERSION "2.3.0"
 #define PIN_STATUS_LED 2
