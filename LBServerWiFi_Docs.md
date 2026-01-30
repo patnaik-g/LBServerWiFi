@@ -1,11 +1,11 @@
-# LBServerWiFi v2.3.0 Technical Documentation
+# LBServerWiFi v2.4.0 Technical Documentation
 
 **Protocol Implementation: LBServer (LocoNet-over-TCP)**
 
 ---
 
 ## I. Executive Summary
-LBServerWiFi v2.3.0 is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. This version marks a transition to a **Decoupled Domain Architecture**, where network transport is strictly isolated from protocol logic through functional abstraction and full encapsulation. It also introduces an **Automatic Idle Safety System** to enforce power-saving policies.
+LBServerWiFi v2.4.0 is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. This version features a **Decoupled Domain Architecture** and a **Configurable Idle Safety System** that allows site-specific power management hardware to be enabled or disabled at compile time via feature flags.
 
 ## II. Component Map
 
@@ -16,7 +16,7 @@ LBServerWiFi v2.3.0 is a high-performance, multi-client bridge designed for the 
 | **NetworkInterface** | `NetworkInterface.h/cpp` | Protocol Layer: Processes LBServer logic via a functional iterator. Hosts optimized hex/buffer helpers and global configuration. |
 | **LocoNet Hardware** | `LocoNetStreamESP32` | Handles low-level bit-timing for the physical LocoNet bus. |
 | **Power Monitor** | `PowerLine.h/cpp` | **Hardware Layer**: Dedicated low-priority FreeRTOS task for hardware debouncing and atomic state management. |
-| **Activity Monitor** | `ActivityMonitor.h/cpp` | **Logic Layer**: Tracks LocoNet and WiFi packets to enforce a 15-minute idle timeout policy for Track Power. |
+| **Activity Monitor** | `ActivityMonitor.h/cpp` | **Logic Layer**: Tracks LocoNet and WiFi packets to enforce idle timeout policies. |
 | **Main Orchestrator** | `LBServerWiFi.ino` | Coordinates system startup and pins tasks to CPU cores. |
 
 ---
@@ -31,9 +31,23 @@ LBServerWiFi v2.3.0 is a high-performance, multi-client bridge designed for the 
 * **Multicore Allocation**: `communicationTask` is pinned to **Core 0**, while LocoNet is reserved for **Core 1**.
 * **Threaded Power Monitoring**: Power sensing runs in a dedicated, low-priority task.
 
-### 3. Safety Systems
-* **System vs. Track Power**: The system distinguishes between hardware bus power (`g_SystemPower`) and logical rail power (`g_TrackPower`).
-* **Idle Timeout**: If `g_TrackPower` is active and no user commands (Switch, Speed, Power) are detected for 15 minutes, the system automatically sends `GP_OFF`.
+### 3. Safety Systems (Tiered Protection)
+The bridge implements a dual-stage safety mechanism to prevent unattended operation:
+* **Tier 1: Track Power (15 Minutes)**
+    * **Trigger**: 15 minutes of inactivity (no Speed, Switch, or Power commands).
+    * **Action**: Sends `OPC_GPOFF` to the LocoNet bus.
+
+* **Tier 2: System Power (30 Minutes)**
+    * **Trigger**: 30 minutes of inactivity.
+    * **Action**: Sends a command to a specific TP-Link Kasa Smart Plug (Alias: "Layout") to cut physical power to the entire layout.
+    * **Optional** (See *Configuration* below).
+
+### 4. Configuration & Conditional Compilation
+To support diverse hardware setups, "Tier 2" protection is controlled via a compile-time feature flag in `NetworkInterface.h`:
+
+* **`#define SYSTEM_POWER_CONTROL`**
+    * **Enabled**: The firmware compiles with the `KasaSmartPlug` library. It will scan for the smart plug during boot and enforce the 30-minute system timeout.
+    * **Disabled (Commented out)**: All Kasa-related code and dependencies are excluded from the build. The system reduces binary size and relies solely on Tier 1 (Track Power) safety. This ensures the code remains portable for users without specific smart plug hardware.
 
 ---
 
@@ -58,24 +72,9 @@ LBServerWiFi v2.3.0 is a high-performance, multi-client bridge designed for the 
 
 | Version | Date | Changes |
 | :--- | :--- | :--- |
+| **v2.4.0** | 2026-01-30 | **Configurable Power Control**: Added `SYSTEM_POWER_CONTROL` compile-time switch. Implemented optional **30-minute System Power Timeout** using Kasa Smart Plug integration. Refactored `ActivityMonitor` to use private helper stubs for clean conditional logic. |
 | **v2.3.0** | 2026-01-29 | **Idle Safety System**: Added `ActivityMonitor` and `PowerLine` integration to enforce 15-minute track power timeout. Updated to `g_SystemPower` gating. |
 | **v2.2.0** | 2026-01-28 | **Decoupled Architecture**: Refactored transport logic into `WiFiManager` and protocol logic into `NetworkInterface`. Added `std::function` callbacks for strict encapsulation. |
 | **v2.1.0** | 2026-01-26 | **Architectural Refactor**: Fully encapsulated TCP client pool (moved to `private`); implemented `forEachActiveClient` functional iterator; stabilized `AsyncDebug` via `extern` linkage. |
 | **v2.0.1** | 2026-01-26 | Restored OTA functionality; removed dead code from `WiFiManager`; optimized idle LED logic. |
 | **v2.0.0** | 2026-01-25 | Initial multi-client release; dual-core task isolation; LBServer implementation. |
-
----
-
-### 4. Active Power Control (New in v2.3.0)
-* **Dual-Stage Safety**:
-    * **Tier 1 (15 Minutes)**: Logical Track Power is disabled (`GP_OFF`) to stop trains.
-    * **Tier 2 (30 Minutes)**: Physical System Power is cut via a TP-Link Kasa Smart Plug (Alias: "Layout").
-* **Blocking Initialization**: WiFi and Hardware discovery occur during `setup()`, prioritizing a deterministic start state over packet reception during boot.
-
----
-
-### 4. Active Power Control (New in v2.3.0)
-* **Dual-Stage Safety**:
-    * **Tier 1 (15 Minutes)**: Logical Track Power is disabled (`GP_OFF`) to stop trains.
-    * **Tier 2 (30 Minutes)**: Physical System Power is cut via a TP-Link Kasa Smart Plug (Alias: "Layout").
-* **Blocking Initialization**: WiFi and Hardware discovery occur during `setup()`, prioritizing a deterministic start state over packet reception during boot.
