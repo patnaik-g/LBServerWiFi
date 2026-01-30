@@ -7,14 +7,19 @@
 #include "AsyncDebug.h"
 #include "PowerLine.h"
 #include "ActivityMonitor.h"
+#ifdef SYSTEM_POWER_CONTROL
 #include "KasaSmartPlug.h"
+#endif
 
 #define LOCONET_PIN_RX 22
 #define LOCONET_PIN_TX 23
 #define PIN_POWER_MONITOR 34
 
 #define TIMEOUT_TRACK_MS 60000   // 15 Minutes
+
+#ifdef SYSTEM_POWER_CONTROL
 #define TIMEOUT_SYSTEM_MS 180000 // 30 Minutes
+#endif
 
 LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
@@ -25,8 +30,13 @@ QueueHandle_t netToLnQueue;
 
 WiFiManager wifiManager("lbserver", 1234);
 PowerLine powerMonitor;
+
+#ifdef SYSTEM_POWER_CONTROL
 ActivityMonitor watchdog(TIMEOUT_TRACK_MS, TIMEOUT_SYSTEM_MS);
 KasaPlug* systemPlug = NULL;
+#else
+ActivityMonitor watchdog(TIMEOUT_TRACK_MS);
+#endif
 
 void setup() {
     btStop();
@@ -54,6 +64,7 @@ void setup() {
     lnStream.start();
     watchdog.reset();
 
+#ifdef SYSTEM_POWER_CONTROL
     // Hardware Discovery
     LOG_DEBUG("Scanning for Kasa Plug 'Layout'...\n");
     systemPlug = KasaPlug::Find("Layout");
@@ -65,6 +76,10 @@ void setup() {
     
     // Inject Dependencies
     watchdog.begin(&lnStream, lnToNetQueue, systemPlug);
+#else
+    watchdog.begin(&lnStream, lnToNetQueue);
+#endif
+
     powerMonitor.begin(PIN_POWER_MONITOR);
 
     LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
