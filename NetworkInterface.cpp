@@ -5,8 +5,7 @@
 extern PowerLine powerMonitor;
 
 void communicationTask(void *pvParameters) {
-    wifiManager.begin();
-    pinMode(PIN_STATUS_LED, OUTPUT);
+    // Note: wifiManager.begin() and pinMode are now handled in setup() on Core 1
     
     ProtocolBuffer inbound; 
     char out[128];
@@ -30,7 +29,7 @@ void communicationTask(void *pvParameters) {
             while (client.available() > 0) {
                 size_t len = client.readBytesUntil('\n', inbound.asChars, 255);
                 
-                // GATE: Check Global System Power (Fixed Name)
+                // GATE: Check Global System Power
                 if (g_SystemPower) {
                     if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                         inbound.asChars[len] = '\0';
@@ -55,7 +54,8 @@ void communicationTask(void *pvParameters) {
                 }
             }
         });
- 
+        wifiManager.loopMaintenance(anyActive);
+
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);
@@ -72,9 +72,6 @@ void communicationTask(void *pvParameters) {
             out[pos] = '\0';
             LOG_DEBUG("BCAST: %s", out);
         }
-
-        wifiManager.loopMaintenance(anyActive);
-
         vTaskDelay(1);
     }
 }

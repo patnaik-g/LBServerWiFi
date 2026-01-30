@@ -63,3 +63,19 @@ LBServerWiFi v2.3.0 is a high-performance, multi-client bridge designed for the 
 | **v2.1.0** | 2026-01-26 | **Architectural Refactor**: Fully encapsulated TCP client pool (moved to `private`); implemented `forEachActiveClient` functional iterator; stabilized `AsyncDebug` via `extern` linkage. |
 | **v2.0.1** | 2026-01-26 | Restored OTA functionality; removed dead code from `WiFiManager`; optimized idle LED logic. |
 | **v2.0.0** | 2026-01-25 | Initial multi-client release; dual-core task isolation; LBServer implementation. |
+
+---
+
+### 4. Active Power Control (New in v2.3.0)
+* **Dual-Stage Safety**:
+    * **Tier 1 (15 Minutes)**: Logical Track Power is disabled (`GP_OFF`) to stop trains.
+    * **Tier 2 (30 Minutes)**: Physical System Power is cut via a TP-Link Kasa Smart Plug (Alias: "Layout").
+* **Blocking Initialization**: WiFi and Hardware discovery occur during `setup()`, prioritizing a deterministic start state over packet reception during boot.
+
+---
+
+### 4. Active Power Control (New in v2.3.0)
+* **Dual-Stage Safety**:
+    * **Tier 1 (15 Minutes)**: Logical Track Power is disabled (`GP_OFF`) to stop trains.
+    * **Tier 2 (30 Minutes)**: Physical System Power is cut via a TP-Link Kasa Smart Plug (Alias: "Layout").
+* **Blocking Initialization**: WiFi and Hardware discovery occur during `setup()`, prioritizing a deterministic start state over packet reception during boot.
