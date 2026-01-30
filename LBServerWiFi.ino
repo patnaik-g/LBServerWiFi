@@ -6,25 +6,27 @@
 #include <LocoNetStreamESP32.h>
 #include "AsyncDebug.h"
 #include "PowerLine.h"
-#include "LocoNetPackets.h"
 #include "ActivityMonitor.h"
 #include "KasaSmartPlug.h"
 
 #define LOCONET_PIN_RX 22
 #define LOCONET_PIN_TX 23
 #define PIN_POWER_MONITOR 34
+
 #define TIMEOUT_TRACK_MS 60000   // 15 Minutes
 #define TIMEOUT_SYSTEM_MS 180000 // 30 Minutes
 
 LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
 LocoNetStreamESP32 lnStream(1, LOCONET_PIN_RX, LOCONET_PIN_TX, false, true, &bus);
+
 QueueHandle_t lnToNetQueue;
 QueueHandle_t netToLnQueue;
+
 WiFiManager wifiManager("lbserver", 1234);
 PowerLine powerMonitor;
 ActivityMonitor watchdog(TIMEOUT_TRACK_MS, TIMEOUT_SYSTEM_MS);
-KasaPlug* systemPlug = NULL; 
+KasaPlug* systemPlug = NULL;
 
 void setup() {
     btStop();
@@ -35,12 +37,12 @@ void setup() {
     while (!Serial && millis() - start < 2000) { delay(10); }
     
     Debug::begin();
+
     lnToNetQueue = xQueueCreate(32, sizeof(lnMsg));
     netToLnQueue = xQueueCreate(32, sizeof(lnMsg));
 
     // Blocking Network Init
     wifiManager.begin();
-
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
     
     // Start Logic
@@ -48,6 +50,7 @@ void setup() {
         watchdog.inspect(p);
         xQueueSend(lnToNetQueue, p, 0); 
     });
+
     lnStream.start();
     watchdog.reset();
 
@@ -62,8 +65,8 @@ void setup() {
     
     // Inject Dependencies
     watchdog.begin(&lnStream, lnToNetQueue, systemPlug);
-    
     powerMonitor.begin(PIN_POWER_MONITOR);
+
     LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
 }
 
@@ -84,9 +87,7 @@ void loop() {
         xQueueSend(lnToNetQueue, &tx, 0);
         watchdog.inspect(&tx);
     }
- 
+
     // 4. Housekeeping
     watchdog.manage();
-
-
 }

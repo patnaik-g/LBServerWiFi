@@ -1,8 +1,5 @@
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
-#include "PowerLine.h"
-
-extern PowerLine powerMonitor;
 
 void communicationTask(void *pvParameters) {
     // Note: wifiManager.begin() and pinMode are now handled in setup() on Core 1
@@ -23,6 +20,7 @@ void communicationTask(void *pvParameters) {
     for (;;) {
         wifiManager.checkNewConnections();
         bool anyActive = false;
+        
         wifiManager.forEachActiveClient([&](WiFiClient& client, int i) {
             anyActive = true;
             
@@ -34,12 +32,13 @@ void communicationTask(void *pvParameters) {
                     if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                         inbound.asChars[len] = '\0';
                         LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
-                        
+                          
                         lnMsg tx; uint8_t txIdx = 0;
                         char *p = inbound.asChars + 4;
             
                         while (p < (inbound.asChars + len) && txIdx < sizeof(tx.data)) {
                             if (*p <= 32) { p++; continue; }
+                            
                             if (*p && *(p + 1)) {
                                 tx.data[txIdx++] = fastHexToByte(*p, *(p + 1));
                                 p += 2;
@@ -54,6 +53,7 @@ void communicationTask(void *pvParameters) {
                 }
             }
         });
+        
         wifiManager.loopMaintenance(anyActive);
 
         lnMsg rx;
