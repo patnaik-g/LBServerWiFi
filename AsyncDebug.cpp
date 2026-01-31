@@ -1,11 +1,3 @@
-/**
- * @file AsyncDebug
- * @brief Asynchronous Logging Engine
- * * Provides a thread-safe, global logging service using a FreeRTOS queue. 
- * Decouples time-sensitive communication tasks from relatively slow Serial 
- * and Telnet I/O, preventing logging latency from affecting LocoNet timing.
- */
-
 #include "AsyncDebug.h"
 #include <TelnetStream.h>
 
@@ -31,14 +23,16 @@ namespace Debug {
     }
 
     void begin() {
-        if (debugQueue != NULL) return; // Prevent double initialization
+        if (debugQueue != NULL) return;
+        // Prevent double initialization
+
         debugQueue = xQueueCreate(DEBUG_QUEUE_DEPTH, sizeof(LogMessage));
         xTaskCreate(debugTask, "DebugTask", 2048, NULL, tskIDLE_PRIORITY, NULL);
     }
 
     void log(const char* fmt, ...) {
-        if (!debugQueue) return; // This check now works globally
-
+        if (!debugQueue) return;
+        // This check now works globally
         LogMessage msg;
         va_list args;
         va_start(args, fmt);

@@ -1,30 +1,18 @@
 /*
  * @file NetworkInterface
- * @brief LocoNet-over-TCP Protocol Handler
+ * @brief LocoNet-over-TCP 
+ * Protocol Handler
  */
 
 #ifndef NETWORK_INTERFACE_H
 #define NETWORK_INTERFACE_H
 
 #include <Arduino.h>
-#include <WiFi.h>
+#include "Common.h"      // Provides: g_SystemPower, g_TrackPower, Queues
 #include "WiFiManager.h" 
-#include "LocoNetStreamESP32
+#include "LocoNetStreamESP32.h"
 
-#define BRIDGE_VERSION "2.3.0"
-#define PIN_STATUS_LED 2
-
-// --- CONFIGURATION ---
-// Comment out to disable Kasa Smart Plug dependency and system power timeout
-#define SYSTEM_POWER_CONTROL 
-
-// --- GLOBAL STATE ---
-extern volatile bool g_SystemPower; // Defined in PowerLine.cpp
-extern volatile bool g_TrackPower;  // Defined in PowerLine.cpp
-
-extern QueueHandle_t lnToNetQueue;
-extern QueueHandle_t netToLnQueue;
-
+// Note: wifiManager remains specific to the Network Interface layer
 extern WiFiManager wifiManager;
 
 union ProtocolBuffer {
@@ -38,7 +26,8 @@ static inline uint8_t fastHexToByte(char high, char low) {
         if (c >= 'a') return c - 'a' + 10;
         return c - '0';
     };
-    return (toN(high) << 4) | (toN(low) & 0x0F);
+    return (toN(high) << 4) |
+           (toN(low) & 0x0F);
 }
 
 static inline uint8_t getPacketLen(const lnMsg *p) {

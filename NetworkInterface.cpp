@@ -4,12 +4,13 @@
 void communicationTask(void *pvParameters) {
     // Note: wifiManager.begin() and pinMode are now handled in setup() on Core 1
     
-    ProtocolBuffer inbound; 
+    ProtocolBuffer inbound;
     char out[128];
     char rsp_ok[10];
 
     out[0] = 'R'; out[1] = 'E'; out[2] = 'C'; out[3] = 'E';
-    out[4] = 'I'; out[5] = 'V'; out[6] = 'E';
+    out[4] = 'I';
+    out[5] = 'V'; out[6] = 'E';
     
     rsp_ok[0] = 'S'; rsp_ok[1] = 'E'; rsp_ok[2] = 'N'; rsp_ok[3] = 'T';
     rsp_ok[4] = ' '; rsp_ok[5] = 'O'; rsp_ok[6] = 'K'; 
@@ -31,6 +32,7 @@ void communicationTask(void *pvParameters) {
                 if (g_SystemPower) {
                     if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
                         inbound.asChars[len] = '\0';
+                    
                         LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
                           
                         lnMsg tx; uint8_t txIdx = 0;

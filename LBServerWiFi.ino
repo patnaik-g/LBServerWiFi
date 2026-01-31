@@ -1,9 +1,9 @@
 /**
- * LBServerWiFi v2.3.0 - Main Orchestrator
+ * LBServerWiFi v2.4.0 - Main Orchestrator
  */
 
+#include "Config.h"
 #include "NetworkInterface.h"
-#include <LocoNetStreamESP32.h>
 #include "AsyncDebug.h"
 #include "PowerLine.h"
 #include "ActivityMonitor.h"
@@ -11,24 +11,20 @@
 #include "KasaSmartPlug.h"
 #endif
 
-#define LOCONET_PIN_RX 22
-#define LOCONET_PIN_TX 23
-#define PIN_POWER_MONITOR 34
-
-#define TIMEOUT_TRACK_MS 60000   // 15 Minutes
-
-#ifdef SYSTEM_POWER_CONTROL
-#define TIMEOUT_SYSTEM_MS 180000 // 30 Minutes
-#endif
-
 LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
-LocoNetStreamESP32 lnStream(1, LOCONET_PIN_RX, LOCONET_PIN_TX, false, true, &bus);
+// Updated to use the consistent PIN_ naming convention
+LocoNetStreamESP32 lnStream(1, PIN_LOCONET_RX, PIN_LOCONET_TX, false, true, &bus);
 
-QueueHandle_t lnToNetQueue;
-QueueHandle_t netToLnQueue;
+// Initialize to safe defaults
+volatile bool g_SystemPower = false;
+volatile bool g_TrackPower = false;
+// Handles are initialized in setup(), so NULL here is fine
+QueueHandle_t lnToNetQueue = NULL;
+QueueHandle_t netToLnQueue = NULL;
 
-WiFiManager wifiManager("lbserver", 1234);
+// Use Config.h Defaults
+WiFiManager wifiManager(DEFAULT_HOSTNAME, DEFAULT_PORT);
 PowerLine powerMonitor;
 
 #ifdef SYSTEM_POWER_CONTROL
@@ -40,34 +36,31 @@ ActivityMonitor watchdog(TIMEOUT_TRACK_MS);
 
 void setup() {
     btStop();
-    Serial.begin(115200);
+    Serial.begin(SERIAL_BAUD_RATE);
     pinMode(PIN_STATUS_LED, OUTPUT);
 
     unsigned long start = millis();
     while (!Serial && millis() - start < 2000) { delay(10); }
     
     Debug::begin();
-
-    lnToNetQueue = xQueueCreate(32, sizeof(lnMsg));
-    netToLnQueue = xQueueCreate(32, sizeof(lnMsg));
-
+    // Now using Config.h constant for Queue Depth
+    lnToNetQueue = xQueueCreate(LOCONET_QUEUE_DEPTH, sizeof(lnMsg));
+    netToLnQueue = xQueueCreate(LOCONET_QUEUE_DEPTH, sizeof(lnMsg));
     // Blocking Network Init
     wifiManager.begin();
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
-    
     // Start Logic
     parser.onPacket(CALLBACK_FOR_ALL_OPCODES, [](const lnMsg *p) {
         watchdog.inspect(p);
         xQueueSend(lnToNetQueue, p, 0); 
     });
-
     lnStream.start();
     watchdog.reset();
 
 #ifdef SYSTEM_POWER_CONTROL
     // Hardware Discovery
-    LOG_DEBUG("Scanning for Kasa Plug 'Layout'...\n");
-    systemPlug = KasaPlug::Find("Layout");
+    LOG_DEBUG("Scanning for Kasa Plug '%s'...\n", KASA_SMARTPLUG_NAME);
+    systemPlug = KasaPlug::Find(KASA_SMARTPLUG_NAME);
     if (systemPlug) {
         LOG_DEBUG("Kasa Plug Found: %s\n", systemPlug->ip);
     } else {
@@ -88,13 +81,12 @@ void setup() {
 void loop() {
     // 1. Hardware Gate (State tracked inside watchdog)
     if (watchdog.isSystemOff()) {
-        delay(10); 
+        delay(10);
         return;
     }
 
     // 2. Core Logic
     lnStream.process();
-
     // 3. Bridge: WiFi -> LocoNet
     static lnMsg tx;
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
