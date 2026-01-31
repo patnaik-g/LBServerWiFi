@@ -1,4 +1,4 @@
-# LBServerWiFi v2.4.0
+# LBServerWiFi
 
 **A high-performance, asynchronous WiFi-to-LocoNet bridge for the ESP32 implementing the LBServer protocol.**
 
@@ -15,7 +15,7 @@ LBServerWiFi enables model railroad control software (e.g., JMRI, RocRail) to co
 * **Web-Based WiFi Provisioning**: A built-in Access Point (AP) mode and captive portal for easy configuration of network credentials.
 * **Wireless and Serial Debugging**: Asynchronous diagnostic monitoring on serial port and via Telnet clients using a idle-priority task.
 * **Automatic Idle Power-Off**: Monitors LocoNet and WiFi activity to automatically turn off track power after 15 minutes of inactivity.
-* **Optional System Power Control**: Integrates with Kasa Smart Plugs to cut physical system power after exteded inactivity.
+* **Optional System Power Control**: Integrates with Kasa Smart Plugs to cut physical system power after 30 minutes of inactivity.
 
 ## Documentation
 For a detailed technical breakdown of the component architecture, safety systems, and compilation options, please refer to the [LBServerWiFi_Docs.md](./LBServerWiFi_Docs.md) file.

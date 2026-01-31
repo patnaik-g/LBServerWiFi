@@ -1,11 +1,11 @@
-# LBServerWiFi v2.4.0 Technical Documentation
+# LBServerWiFi Technical Documentation
 
 **Protocol Implementation: LBServer (LocoNet-over-TCP)**
 
 ---
 
 ## I. Executive Summary
-LBServerWiFi v2.4.0 is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. This version features a **Decoupled Domain Architecture** and a **Configurable Idle Safety System** that allows site-specific power management hardware to be enabled or disabled at compile time via feature flags.
+LBServerWiFi is a high-performance, multi-client bridge designed for the ESP32 microcontroller. It implements the **LBServer protocol** to enable simultaneous communication between multiple model railroad control applications and a physical LocoNet network. This version features a **Decoupled Domain Architecture** and a **Configurable Idle Safety System** that allows site-specific power management hardware to be enabled or disabled at compile time via feature flags.
 
 ## II. Component Map
 
@@ -72,6 +72,7 @@ To support diverse hardware setups, "Tier 2" protection is controlled via a comp
 
 | Version | Date | Changes |
 | :--- | :--- | :--- |
+| **v2.5.0** | 2026-01-31 | **Configuration & Stability**: Introduced `Config.h` to consolidate global settings and feature flags. Locked `DebugTask` stack to 16KB to prevent Telnet overflows. Fixed mDNS startup race condition. |
 | **v2.4.0** | 2026-01-30 | **Configurable Power Control**: Added `SYSTEM_POWER_CONTROL` compile-time switch. Implemented optional **30-minute System Power Timeout** using Kasa Smart Plug integration. Refactored `ActivityMonitor` to use private helper stubs for clean conditional logic. |
 | **v2.3.0** | 2026-01-29 | **Idle Safety System**: Added `ActivityMonitor` and `PowerLine` integration to enforce 15-minute track power timeout. Updated to `g_SystemPower` gating. |
 | **v2.2.0** | 2026-01-28 | **Decoupled Architecture**: Refactored transport logic into `WiFiManager` and protocol logic into `NetworkInterface`. Added `std::function` callbacks for strict encapsulation. |

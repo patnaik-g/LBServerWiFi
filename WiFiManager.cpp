@@ -18,13 +18,16 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
-  LOG_DEBUG("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...\n");
+  
+  // Direct Serial Output ONLY for boot (No LOG_DEBUG duplication)
+  Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
+  
   unsigned long t = millis();
   while (millis() - t < 2000) {
       if (Serial.available()) {
           char c = Serial.read();
           if (c == 'w' || c == 'W') {
-              LOG_DEBUG("\n!!! WIPE COMMAND RECEIVED !!!\n");
+              Serial.println("\n!!! WIPE COMMAND RECEIVED !!!");
               prefs.clear();
               prefs.end();
               for(int i=0; i<10; i++) {
@@ -41,7 +44,10 @@ void WiFiManager::begin() {
   String ssid = prefs.getString("ssid", "");
   String password = prefs.getString("password", "");
   String host = prefs.getString("hostname", this->hostname);
-  this->hostname = strdup(host.c_str());
+  
+  static char finalHostname[32];
+  strncpy(finalHostname, host.c_str(), 31);
+  this->hostname = finalHostname;
   
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
     prefs.end();
@@ -61,17 +67,33 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    LOG_DEBUG("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
     
-    ArduinoOTA.begin();
-    TelnetStream.begin();
-    // Standard mDNS Setup
+    // Settling delay for network stack
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Force a full teardown of any ghost mDNS services
+    MDNS.end();
+    delay(100); 
+
     if (MDNS.begin(hostname)) {
         MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
-        MDNS.addService("arduino", "tcp", 3232); // Helps the IDE find the port
+        
+        #ifdef ENABLE_TELNET_LOGGING
+        MDNS.addService("telnet", "tcp", 23);
+        #endif
+        
+        Serial.printf("mDNS responder started: %s.local\n", hostname);
     } else {
-        LOG_DEBUG("Error setting up MDNS responder!\n");
+        Serial.println("Error setting up MDNS responder!");
     }
+    
+    ArduinoOTA.setHostname(hostname);
+    ArduinoOTA.begin();
+    
+    #ifdef ENABLE_TELNET_LOGGING
+    TelnetStream.begin();
+    #endif
     
     server.begin();
     return true;
@@ -81,7 +103,6 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
 
 void WiFiManager::checkNewConnections() {
   if (server.hasClient()) {
-    bool assigned = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
       if (!clientActive[i]) {
         clientPool[i] = server.available();
@@ -89,7 +110,6 @@ void WiFiManager::checkNewConnections() {
            clientPool[i].setNoDelay(true);
            clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
            clientActive[i] = true;
-           assigned = true;
         }
         break;
       }
