@@ -72,6 +72,7 @@ To support diverse hardware setups, "Tier 2" protection is controlled via a comp
 
 | Version | Date | Changes |
 | :--- | :--- | :--- |
+| **v2.5.1** | 2026-02-01 | **Portal Fix**: Restored functional WiFi Setup Portal with HTML input forms. Added `viewport` meta tag for mobile scaling. Fixed hardcoded hostname in AP Mode logs and web headers. |
 | **v2.5.0** | 2026-01-31 | **Configuration & Stability**: Introduced `Config.h` to consolidate global settings and feature flags. Locked `DebugTask` stack to 16KB to prevent Telnet overflows. Fixed mDNS startup race condition. |
 | **v2.4.0** | 2026-01-30 | **Configurable Power Control**: Added `SYSTEM_POWER_CONTROL` compile-time switch. Implemented optional **30-minute System Power Timeout** using Kasa Smart Plug integration. Refactored `ActivityMonitor` to use private helper stubs for clean conditional logic. |
 | **v2.3.0** | 2026-01-29 | **Idle Safety System**: Added `ActivityMonitor` and `PowerLine` integration to enforce 15-minute track power timeout. Updated to `g_SystemPower` gating. |

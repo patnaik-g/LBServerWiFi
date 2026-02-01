@@ -19,7 +19,6 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
   
-  // Direct Serial Output ONLY for boot (No LOG_DEBUG duplication)
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
   
   unsigned long t = millis();
@@ -68,21 +67,15 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
-    
-    // Settling delay for network stack
     vTaskDelay(pdMS_TO_TICKS(1000));
-
-    // Force a full teardown of any ghost mDNS services
     MDNS.end();
     delay(100); 
 
     if (MDNS.begin(hostname)) {
         MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
-        
         #ifdef ENABLE_TELNET_LOGGING
         MDNS.addService("telnet", "tcp", 23);
         #endif
-        
         Serial.printf("mDNS responder started: %s.local\n", hostname);
     } else {
         Serial.println("Error setting up MDNS responder!");
@@ -152,9 +145,43 @@ void WiFiManager::broadcast(const char* data, size_t len) {
 
 void WiFiManager::startAPMode() {
   WiFi.softAP(hostname);
+  Serial.printf("AP Mode Started. Connect to %s to configure WiFi.\n", hostname);
+
   webServer.on("/", [this]() {
-    webServer.send(200, "text/html", "<h2>WiFi Setup</h2>");
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>";
+    html += "<body><h2>" + String(hostname) + " WiFi Setup</h2>";
+    html += "<form action='/save' method='POST'>";
+    html += "Hostname: <br><input type='text' name='hostname' value='" + String(hostname) + "'><br>";
+    html += "SSID: <br><input type='text' name='ssid'><br>";
+    html += "Password: <br><input type='password' name='pass'><br><br>";
+    html += "<input type='submit' value='Save and Reboot'></form></body></html>";
+    webServer.send(200, "text/html", html);
   });
+
+  webServer.on("/save", [this]() {
+    String newSsid = webServer.arg("ssid");
+    String newPass = webServer.arg("pass");
+    String newHost = webServer.arg("hostname");
+    
+    // Header for mobile scaling
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body>";
+    
+    if (newSsid.length() > 0) {
+      prefs.putString("ssid", newSsid);
+      prefs.putString("password", newPass);
+      if (newHost.length() > 0) prefs.putString("hostname", newHost);
+      
+      html += "<h2>Settings saved. Rebooting...</h2></body></html>";
+      webServer.send(200, "text/html", html);
+      
+      delay(2000);
+      ESP.restart();
+    } else {
+      html += "<h2>Error: SSID cannot be empty.</h2><a href='/'>Back</a></body></html>";
+      webServer.send(200, "text/html", html);
+    }
+  });
+
   webServer.begin();
   while (true) { webServer.handleClient(); }
 }
