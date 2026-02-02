@@ -1,6 +1,8 @@
 #include "NetworkInterface.h"
 #include "AsyncDebug.h"
 
+uint32_t lastTrafficMilli = 0;
+
 void communicationTask(void *pvParameters) {
     // Note: wifiManager.begin() and pinMode are now handled in setup() on Core 1
     
@@ -9,8 +11,7 @@ void communicationTask(void *pvParameters) {
     char rsp_ok[10];
 
     out[0] = 'R'; out[1] = 'E'; out[2] = 'C'; out[3] = 'E';
-    out[4] = 'I';
-    out[5] = 'V'; out[6] = 'E';
+    out[4] = 'I'; out[5] = 'V'; out[6] = 'E';
     
     rsp_ok[0] = 'S'; rsp_ok[1] = 'E'; rsp_ok[2] = 'N'; rsp_ok[3] = 'T';
     rsp_ok[4] = ' '; rsp_ok[5] = 'O'; rsp_ok[6] = 'K'; 
@@ -19,6 +20,7 @@ void communicationTask(void *pvParameters) {
     const uint32_t SIG_SEND = 0x444E4553; // "SEND"
 
     for (;;) {
+        uint32_t now = millis();
         wifiManager.checkNewConnections();
         bool anyActive = false;
         
@@ -40,7 +42,6 @@ void communicationTask(void *pvParameters) {
             
                         while (p < (inbound.asChars + len) && txIdx < sizeof(tx.data)) {
                             if (*p <= 32) { p++; continue; }
-                            
                             if (*p && *(p + 1)) {
                                 tx.data[txIdx++] = fastHexToByte(*p, *(p + 1));
                                 p += 2;
@@ -49,6 +50,11 @@ void communicationTask(void *pvParameters) {
 
                         if (txIdx > 0 && xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
                             client.write(rsp_ok, 9);
+                            
+                            // Traffic Trigger: RX
+                            digitalWrite(PIN_STATUS_LED, HIGH);
+                            lastTrafficMilli = now;
+                            
                             LOG_DEBUG("Ack: %s", rsp_ok);
                         }
                     }
@@ -56,8 +62,6 @@ void communicationTask(void *pvParameters) {
             }
         });
         
-        wifiManager.loopMaintenance(anyActive);
-
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);
@@ -71,9 +75,18 @@ void communicationTask(void *pvParameters) {
             }
             out[pos++] = '\r'; out[pos++] = '\n';
             wifiManager.broadcast(out, pos);
+
+            // Traffic Trigger: TX (Only if clients connected)
+            if (anyActive) {
+                digitalWrite(PIN_STATUS_LED, HIGH);
+                lastTrafficMilli = now;
+            }
+
             out[pos] = '\0';
             LOG_DEBUG("BCAST: %s", out);
         }
+
+        wifiManager.loopMaintenance(anyActive);
         vTaskDelay(1);
     }
 }

@@ -5,6 +5,8 @@
 #include "WiFiManager.h"
 #include "AsyncDebug.h" 
 
+extern uint32_t lastTrafficMilli;
+
 WiFiEventCallback WiFiManager::eventCallback = nullptr;
 
 WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback callback) 
@@ -18,7 +20,6 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
-  
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
   
   unsigned long t = millis();
@@ -50,6 +51,8 @@ void WiFiManager::begin() {
   
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
     prefs.end();
+    // Default: Solid ON (0 active clients initially)
+    digitalWrite(PIN_STATUS_LED, HIGH);
   } else {
     startAPMode();
   }
@@ -69,13 +72,14 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
     Serial.printf("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
     vTaskDelay(pdMS_TO_TICKS(1000));
     MDNS.end();
-    delay(100); 
-
+    delay(100);
+    
     if (MDNS.begin(hostname)) {
         MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
         #ifdef ENABLE_TELNET_LOGGING
         MDNS.addService("telnet", "tcp", 23);
         #endif
+        
         Serial.printf("mDNS responder started: %s.local\n", hostname);
     } else {
         Serial.println("Error setting up MDNS responder!");
@@ -115,10 +119,18 @@ void WiFiManager::loopMaintenance(bool anyActive) {
     digitalWrite(PIN_STATUS_LED, HIGH);
     ArduinoOTA.handle();
   } else {
-    if (millis() - lastBlink > 500) {
-      ledState = !ledState;
-      digitalWrite(PIN_STATUS_LED, ledState);
-      lastBlink = millis();
+    // Optimization: Single time sample
+    uint32_t now = millis();
+    
+    // 10s Heartbeat
+    if (now - lastTrafficMilli > 10000) {
+      digitalWrite(PIN_STATUS_LED, HIGH);
+      lastTrafficMilli = now;
+    }
+    
+    // Snap Off (10ms pulse)
+    if (digitalRead(PIN_STATUS_LED) == HIGH && (now - lastTrafficMilli > 10)) {
+      digitalWrite(PIN_STATUS_LED, LOW);
     }
   }
 }
