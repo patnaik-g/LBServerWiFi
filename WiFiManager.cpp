@@ -105,6 +105,7 @@ void WiFiManager::checkNewConnections() {
         clientPool[i] = server.available();
         if (clientPool[i]) {
            clientPool[i].setNoDelay(true);
+           LOG_DEBUG("Client %d connected from %s\n", i, clientPool[i].remoteIP().toString().c_str());
            clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
            clientActive[i] = true;
         }
@@ -139,6 +140,7 @@ void WiFiManager::forEachActiveClient(std::function<void(WiFiClient&, int index)
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (!clientActive[i]) continue;
     if (!clientPool[i].connected()) {
+      LOG_DEBUG("Client %d disconnected\n", i);
       clientPool[i].stop();
       clientActive[i] = false;
       continue;
@@ -184,6 +186,7 @@ void WiFiManager::startAPMode() {
       if (newHost.length() > 0) prefs.putString("hostname", newHost);
       
       html += "<h2>Settings saved. Rebooting...</h2></body></html>";
+  
       webServer.send(200, "text/html", html);
       
       delay(2000);
