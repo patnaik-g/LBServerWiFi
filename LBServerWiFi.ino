@@ -1,5 +1,5 @@
 /**
- * LBServerWiFi v2.5.0 - Main Orchestrator
+ * LBServerWiFi v2.5.3 - Main Orchestrator
  */
 
 #include "Config.h"
@@ -17,7 +17,6 @@ LocoNetStreamESP32 lnStream(1, PIN_LOCONET_RX, PIN_LOCONET_TX, false, true, &bus
 
 volatile bool g_SystemPower = false;
 volatile bool g_TrackPower = false;
-
 QueueHandle_t lnToNetQueue = NULL;
 QueueHandle_t netToLnQueue = NULL;
 
@@ -32,12 +31,16 @@ ActivityMonitor watchdog(TIMEOUT_TRACK_MS);
 #endif
 
 void setup() {
-    btStop();
-    Serial.begin(SERIAL_BAUD_RATE);
-    pinMode(PIN_STATUS_LED, OUTPUT);
+    btStop(); 
 
+    // WRAPPED: Only initialize Serial if explicitly enabled in Config.h
+    #ifdef ENABLE_SERIAL_LOGGING
+    Serial.begin(SERIAL_BAUD_RATE);
     unsigned long start = millis();
     while (!Serial && millis() - start < 2000) { delay(10); }
+    #endif
+    
+    pinMode(PIN_STATUS_LED, OUTPUT);
     
     Debug::begin();
 
@@ -51,20 +54,24 @@ void setup() {
         watchdog.inspect(p);
         xQueueSend(lnToNetQueue, p, 0); 
     });
-
     lnStream.start();
     watchdog.reset();
 
 #ifdef SYSTEM_POWER_CONTROL
-    // Direct Serial only for boot diagnostics
+    // WRAPPED: Kasa Discovery logging
+    #ifdef ENABLE_SERIAL_LOGGING
     Serial.printf("Scanning for Kasa Plug '%s'...\n", KASA_SMARTPLUG_NAME);
+    #endif
     
     systemPlug = KasaPlug::Find(KASA_SMARTPLUG_NAME);
+    
+    #ifdef ENABLE_SERIAL_LOGGING
     if (systemPlug) {
         Serial.printf("Kasa Plug Found: %s\n", systemPlug->ip);
     } else {
         Serial.println("Kasa Plug Not Found.");
     }
+    #endif
     
     watchdog.begin(&lnStream, lnToNetQueue, systemPlug);
 #else
@@ -72,8 +79,10 @@ void setup() {
 #endif
 
     powerMonitor.begin(PIN_POWER_MONITOR);
-
+    
+    #ifdef ENABLE_SERIAL_LOGGING
     Serial.printf("%s initialized\n", BRIDGE_VERSION);
+    #endif
 }
 
 void loop() {

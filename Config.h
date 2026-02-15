@@ -25,9 +25,9 @@
 // =============================================================================
 // 4. HARDWARE PINOUT (ESP32)
 // =============================================================================
-#define PIN_LOCONET_RX 22
-#define PIN_LOCONET_TX 23
-#define PIN_POWER_MONITOR 34
+#define PIN_LOCONET_RX 26
+#define PIN_LOCONET_TX 18
+#define PIN_POWER_MONITOR 33
 #define PIN_STATUS_LED 2
 
 // =============================================================================
@@ -48,7 +48,7 @@
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
 // Runtime logging ENABLED for v2.5.0 release
-#define ENABLE_SERIAL_LOGGING
+//#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
 
 #define SERIAL_BAUD_RATE 115200

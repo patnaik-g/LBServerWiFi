@@ -13,6 +13,14 @@ KasaPlug::KasaPlug(const char *ipAddress) {
 }
 
 KasaPlug* KasaPlug::Find(const char* targetAlias, int timeoutMs, int maxRetries) {
+    // STATIC ALLOCATION:
+    // Moved ~2KB from Stack to Global Memory to prevent Stack Overflow.
+    // NOTE: This makes 'Find' non-reentrant (not thread-safe), but it is 
+    // only called from setup(), so this is safe and much more stable.
+    static char buf[128];
+    static char rBuf[1024];
+    static StaticJsonDocument<1024> sDoc; 
+
     int attempt = 0;
     while(attempt++ < maxRetries) {
         int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
@@ -21,20 +29,19 @@ KasaPlug* KasaPlug::Find(const char* targetAlias, int timeoutMs, int maxRetries)
         int bcast = 1;
         setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &bcast, sizeof(bcast));
 
-        char buf[128];
         struct sockaddr_in addr = { .sin_family = AF_INET, .sin_port = htons(9999) };
         addr.sin_addr.s_addr = inet_addr("255.255.255.255");
         
         sendto(sock, buf, Encrypt(CMD_INFO, strlen(CMD_INFO), 0, buf), 0, (struct sockaddr *)&addr, sizeof(addr));
-
+        
         struct timeval tv = { .tv_sec = 0, .tv_usec = (long)timeoutMs * 1000 };
         fd_set rfds;
         FD_ZERO(&rfds);
         FD_SET(sock, &rfds);
-
+        
         while (select(sock + 1, &rfds, NULL, NULL, &tv) > 0) {
             if (FD_ISSET(sock, &rfds)) {
-                char rBuf[1024], rIp[32] = {0};
+                char rIp[32] = {0};
                 struct sockaddr_storage rAddr;
                 socklen_t rLen = sizeof(rAddr);
                 
@@ -43,7 +50,7 @@ KasaPlug* KasaPlug::Find(const char* targetAlias, int timeoutMs, int maxRetries)
                     n = Decrypt(rBuf, n, rBuf, 0);
                     rBuf[n] = 0;
                     
-                    StaticJsonDocument<1024> sDoc;
+                    sDoc.clear(); // Reuse the static document
                     if (n > 50 && !deserializeJson(sDoc, rBuf)) {
                         if (strcmp(sDoc["system"]["get_sysinfo"]["alias"], targetAlias) == 0) {
                             if (rAddr.ss_family == PF_INET) {
@@ -55,12 +62,13 @@ KasaPlug* KasaPlug::Find(const char* targetAlias, int timeoutMs, int maxRetries)
                     }
                 }
             }
-            tv.tv_sec = 0; tv.tv_usec = 50000;
+            tv.tv_sec = 0;
+            tv.tv_usec = 50000;
             FD_ZERO(&rfds);
             FD_SET(sock, &rfds);
         }
         close(sock);
-        delay(2000); 
+        delay(2000);
     }
     return NULL;
 }
@@ -69,7 +77,6 @@ bool KasaPlug::OpenSock() {
     if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0) return false;
     struct timeval tv = {1, 0}; 
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    
     if (connect(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
         CloseSock();
         return false;
@@ -86,6 +93,7 @@ void KasaPlug::CloseSock() {
 }
 
 int KasaPlug::SendQuery(const char *cmd, char *buf, int len, long timeout) {
+    // static not needed here (buffers passed from caller)
     int rLen = 0;
     if(OpenSock()) {
         char sBuf[128];
@@ -98,8 +106,13 @@ int KasaPlug::SendQuery(const char *cmd, char *buf, int len, long timeout) {
 }
 
 int KasaPlug::SyncState() {
-    char buf[1024];
+    // STATIC ALLOCATION:
+    // Moves 1KB from Stack to BSS. Critical for stability when called
+    // from deep within ActivityMonitor logic.
+    static char buf[1024];
+    
     int len = SendQuery(CMD_INFO, buf, 1024, 500000);
+    doc.clear(); // doc is already a class member (heap/global), so just clear it
     if (len > 50 && !deserializeJson(doc, buf, len)) {
         state = doc["system"]["get_sysinfo"]["relay_state"];
         return state;
@@ -108,7 +121,7 @@ int KasaPlug::SyncState() {
 }
 
 bool KasaPlug::SetRelay(uint8_t target) {
-    char buf[64];
+    char buf[64]; // Small enough to leave on stack
     return SendQuery(target ? CMD_ON : CMD_OFF, buf, 64, 500000) > 0;
 }
 
@@ -125,14 +138,17 @@ bool KasaPlug::SetRelayVerified(uint8_t target, int retries) {
 uint16_t KasaPlug::Encrypt(const char *d, int len, uint8_t add, char *out) {
     uint8_t k = KASA_KEY;
     int idx = 0;
-    if (add) { out[idx++] = 0; out[idx++] = 0; out[idx++] = len >> 8; out[idx++] = len & 0xFF; }
-    for (int i=0; i<len; i++) { out[idx++] = d[i] ^ k; k = out[idx-1]; }
+    if (add) { out[idx++] = 0; out[idx++] = 0; out[idx++] = len >> 8;
+    out[idx++] = len & 0xFF; }
+    for (int i=0; i<len; i++) { out[idx++] = d[i] ^ k;
+    k = out[idx-1]; }
     return idx;
 }
 
 uint16_t KasaPlug::Decrypt(char *d, int len, char *out, int start) {
     uint8_t k = KASA_KEY;
     int r = 0;
-    for (int i=start; i<len; i++) { uint8_t dc = d[i] ^ k; k = d[i]; out[r++] = dc; }
+    for (int i=start; i<len; i++) { uint8_t dc = d[i] ^ k; k = d[i];
+    out[r++] = dc; }
     return r;
 }

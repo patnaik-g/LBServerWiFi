@@ -6,7 +6,6 @@
 #include "AsyncDebug.h" 
 
 extern uint32_t lastTrafficMilli;
-
 WiFiEventCallback WiFiManager::eventCallback = nullptr;
 
 WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback callback) 
@@ -20,6 +19,10 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
+
+  // WRAPPED: The 2-second delay and 'w' check are now conditional.
+  // If Serial is disabled, this block is skipped for an instant boot.
+  #ifdef ENABLE_SERIAL_LOGGING
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
   
   unsigned long t = millis();
@@ -40,6 +43,7 @@ void WiFiManager::begin() {
       }
       delay(10);
   }
+  #endif
 
   String ssid = prefs.getString("ssid", "");
   String password = prefs.getString("password", "");
@@ -48,10 +52,9 @@ void WiFiManager::begin() {
   static char finalHostname[32];
   strncpy(finalHostname, host.c_str(), 31);
   this->hostname = finalHostname;
-  
+
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
     prefs.end();
-    // Default: Solid ON (0 active clients initially)
     digitalWrite(PIN_STATUS_LED, HIGH);
   } else {
     startAPMode();
@@ -69,20 +72,25 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    #ifdef ENABLE_SERIAL_LOGGING
     Serial.printf("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    #endif
+    
     vTaskDelay(pdMS_TO_TICKS(1000));
     MDNS.end();
     delay(100);
-    
     if (MDNS.begin(hostname)) {
         MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
         #ifdef ENABLE_TELNET_LOGGING
         MDNS.addService("telnet", "tcp", 23);
         #endif
-        
+        #ifdef ENABLE_SERIAL_LOGGING
         Serial.printf("mDNS responder started: %s.local\n", hostname);
+        #endif
     } else {
+        #ifdef ENABLE_SERIAL_LOGGING
         Serial.println("Error setting up MDNS responder!");
+        #endif
     }
     
     ArduinoOTA.setHostname(hostname);
@@ -116,20 +124,24 @@ void WiFiManager::checkNewConnections() {
 }
 
 void WiFiManager::loopMaintenance(bool anyActive) {
+  static uint32_t lastHeapLog = 0;
+  uint32_t now = millis();
+
+  // Periodic Heap Check (Every 10 mins)
+  if (now - lastHeapLog > 600000) {
+      LOG_DEBUG("System Health - Free Heap: %u bytes\n", ESP.getFreeHeap());
+      lastHeapLog = now;
+  }
+
   if (!anyActive) {
     digitalWrite(PIN_STATUS_LED, HIGH);
     ArduinoOTA.handle();
   } else {
-    // Optimization: Single time sample
-    uint32_t now = millis();
-    
-    // 10s Heartbeat
     if (now - lastTrafficMilli > 10000) {
       digitalWrite(PIN_STATUS_LED, HIGH);
       lastTrafficMilli = now;
     }
     
-    // Snap Off (10ms pulse)
     if (digitalRead(PIN_STATUS_LED) == HIGH && (now - lastTrafficMilli > 10)) {
       digitalWrite(PIN_STATUS_LED, LOW);
     }
@@ -159,8 +171,10 @@ void WiFiManager::broadcast(const char* data, size_t len) {
 
 void WiFiManager::startAPMode() {
   WiFi.softAP(hostname);
+  #ifdef ENABLE_SERIAL_LOGGING
   Serial.printf("AP Mode Started. Connect to %s to configure WiFi.\n", hostname);
-
+  #endif
+  
   webServer.on("/", [this]() {
     String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>";
     html += "<body><h2>" + String(hostname) + " WiFi Setup</h2>";
@@ -171,13 +185,11 @@ void WiFiManager::startAPMode() {
     html += "<input type='submit' value='Save and Reboot'></form></body></html>";
     webServer.send(200, "text/html", html);
   });
-
   webServer.on("/save", [this]() {
     String newSsid = webServer.arg("ssid");
     String newPass = webServer.arg("pass");
     String newHost = webServer.arg("hostname");
     
-    // Header for mobile scaling
     String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body>";
     
     if (newSsid.length() > 0) {
@@ -186,9 +198,7 @@ void WiFiManager::startAPMode() {
       if (newHost.length() > 0) prefs.putString("hostname", newHost);
       
       html += "<h2>Settings saved. Rebooting...</h2></body></html>";
-  
       webServer.send(200, "text/html", html);
-      
       delay(2000);
       ESP.restart();
     } else {
@@ -196,7 +206,6 @@ void WiFiManager::startAPMode() {
       webServer.send(200, "text/html", html);
     }
   });
-
   webServer.begin();
   while (true) { webServer.handleClient(); }
 }
