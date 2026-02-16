@@ -20,13 +20,12 @@ void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQ
 }
 
 // [ENABLED] Helper Logic
-bool ActivityMonitor::checkSystemTimeout() {
+bool ActivityMonitor::checkSystemTimeout(uint32_t now) {
     if (!g_SystemPower) return false;
-    return (millis() - lastActivity > systemTimeoutMs);
+    return (now - lastActivity > systemTimeoutMs);
 }
 
 void ActivityMonitor::performSystemShutdown() {
-    // FIX: Calculate minutes dynamically for the log
     LOG_DEBUG("Idle Timeout (%d min). System Power OFF.\n", systemTimeoutMs / 60000);
     if (_plug) { 
         _plug->SetRelayVerified(0);
@@ -50,14 +49,13 @@ void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQ
 }
 
 // [DISABLED] Stubs (Optimized away by compiler)
-bool ActivityMonitor::checkSystemTimeout() { return false;
-}
+bool ActivityMonitor::checkSystemTimeout(uint32_t now) { return false; }
 void ActivityMonitor::performSystemShutdown() { /* No-Op */ }
 
 #endif
 
 
-// --- 2. COMMON LOGIC (Clean C++, No #ifdefs) ---
+// --- 2. COMMON LOGIC ---
 
 bool ActivityMonitor::isSystemOff() {
     if (!g_SystemPower) {
@@ -73,22 +71,27 @@ void ActivityMonitor::reset() {
 
 void ActivityMonitor::inspect(const lnMsg *p) {
     uint8_t opc = p->data[0];
-    if (opc == OPC_GPON)  { g_TrackPower = true;  lastActivity = millis();
+    uint32_t now = millis();
+
+    if (opc == OPC_GPON)  { 
+        g_TrackPower = true;  
+        lastActivity = now;
     }
-    if (opc == OPC_GPOFF) { g_TrackPower = false;
+    if (opc == OPC_GPOFF) { 
+        g_TrackPower = false;
     }
 
     if (g_TrackPower) {
         bool active = false;
         if (opc == OPC_SW_REQ) active = true;
         if (opc == OPC_LOCO_SPD && p->data[2] > 0) active = true;
-        if (active) lastActivity = millis();
+        if (active) lastActivity = now;
     }
 }
 
-bool ActivityMonitor::shouldTriggerTrackOff() {
+bool ActivityMonitor::shouldTriggerTrackOff(uint32_t now) {
     if (!g_SystemPower) return false;
-    if (g_TrackPower && (millis() - lastActivity > trackTimeoutMs)) {
+    if (g_TrackPower && (now - lastActivity > trackTimeoutMs)) {
         g_TrackPower = false;
         return true;
     }
@@ -96,24 +99,24 @@ bool ActivityMonitor::shouldTriggerTrackOff() {
 }
 
 void ActivityMonitor::manage() {
+    uint32_t now = millis();
+
     // 1. Handle Wake-Up Logic
     if (_wasSystemOff) {
         LOG_DEBUG("System Power Restored. Resetting Idle Timer.\n");
-        reset();
+        lastActivity = now;
         _wasSystemOff = false;
     }
 
     // 2. TIER 1: Track Power
-    if (shouldTriggerTrackOff()) {
-        // FIX: Calculate minutes dynamically for the log
+    if (shouldTriggerTrackOff(now)) {
         LOG_DEBUG("Idle Timeout (%d min). Track Power OFF.\n", trackTimeoutMs / 60000);
         if (_lnStream) _lnStream->send((lnMsg*)&PACKET_GP_OFF);
         if (_lnToNetQueue) xQueueSend(_lnToNetQueue, (void*)&PACKET_GP_OFF, 0);
     }
 
-    // 3. TIER 2: System Power (Clean call to conditional helper)
-    if (checkSystemTimeout()) {
+    // 3. TIER 2: System Power
+    if (checkSystemTimeout(now)) {
         performSystemShutdown();
-        // Log message is inside this function
     }
 }

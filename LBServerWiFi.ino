@@ -31,9 +31,8 @@ ActivityMonitor watchdog(TIMEOUT_TRACK_MS);
 #endif
 
 void setup() {
-    btStop(); 
+    btStop();
 
-    // WRAPPED: Only initialize Serial if explicitly enabled in Config.h
     #ifdef ENABLE_SERIAL_LOGGING
     Serial.begin(SERIAL_BAUD_RATE);
     unsigned long start = millis();
@@ -54,24 +53,20 @@ void setup() {
         watchdog.inspect(p);
         xQueueSend(lnToNetQueue, p, 0); 
     });
+
     lnStream.start();
     watchdog.reset();
 
 #ifdef SYSTEM_POWER_CONTROL
-    // WRAPPED: Kasa Discovery logging
-    #ifdef ENABLE_SERIAL_LOGGING
-    Serial.printf("Scanning for Kasa Plug '%s'...\n", KASA_SMARTPLUG_NAME);
-    #endif
+    LOG_DEBUG("Scanning for Kasa Plug '%s'...\n", KASA_SMARTPLUG_NAME);
     
     systemPlug = KasaPlug::Find(KASA_SMARTPLUG_NAME);
-    
-    #ifdef ENABLE_SERIAL_LOGGING
+
     if (systemPlug) {
-        Serial.printf("Kasa Plug Found: %s\n", systemPlug->ip);
+        LOG_DEBUG("Kasa Plug Found: %s\n", systemPlug->ip);
     } else {
-        Serial.println("Kasa Plug Not Found.");
+        LOG_DEBUG("Kasa Plug Not Found.\n");
     }
-    #endif
     
     watchdog.begin(&lnStream, lnToNetQueue, systemPlug);
 #else
@@ -80,9 +75,7 @@ void setup() {
 
     powerMonitor.begin(PIN_POWER_MONITOR);
     
-    #ifdef ENABLE_SERIAL_LOGGING
-    Serial.printf("%s initialized\n", BRIDGE_VERSION);
-    #endif
+    LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
 }
 
 void loop() {

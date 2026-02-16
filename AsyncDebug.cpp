@@ -24,7 +24,6 @@ namespace Debug {
     void begin() {
         if (debugQueue != NULL) return;
         debugQueue = xQueueCreate(DEBUG_QUEUE_DEPTH, sizeof(LogMessage));
-        // Stack: 4096 words (16KB) for stability
         xTaskCreate(debugTask, "DebugTask", 4096, NULL, tskIDLE_PRIORITY, NULL);
     }
 

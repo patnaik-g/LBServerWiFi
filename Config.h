@@ -52,8 +52,8 @@
 //#define ENABLE_HEAP_MONITOR // Needed to check heap
 
 #define SERIAL_BAUD_RATE 115200
-#define LOCONET_QUEUE_DEPTH 32
-#define DEBUG_QUEUE_DEPTH 32
+#define LOCONET_QUEUE_DEPTH 64
+#define DEBUG_QUEUE_DEPTH 64
 #define DEBUG_MSG_LEN 256
 
 #endif

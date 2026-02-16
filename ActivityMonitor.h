@@ -28,10 +28,10 @@ class ActivityMonitor {
     KasaPlug* _plug;
 #endif
 
-    bool shouldTriggerTrackOff();
-    bool checkSystemTimeout();
+    bool shouldTriggerTrackOff(uint32_t now);
+    bool checkSystemTimeout(uint32_t now);
     void performSystemShutdown();
-  public:
+public:
 #ifdef SYSTEM_POWER_CONTROL
     ActivityMonitor(uint32_t trackTimeout, uint32_t systemTimeout);
     void begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue, KasaPlug* plug);
