@@ -12,8 +12,7 @@ void PowerLine::begin(int p) {
   pin = p;
   pinMode(pin, INPUT);
   debouncer.attach(pin, INPUT);
-  debouncer.interval(50); 
-
+  debouncer.interval(50);
   // Initial state check
   debouncer.update();
   g_SystemPower = (debouncer.read() == HIGH);
@@ -38,6 +37,8 @@ void PowerLine::task(void* param) {
         LOG_DEBUG("System Power: ON\n");
     }
 
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // OPTIMIZATION: Relaxed polling for physical switch
+    // 50ms (20Hz) is sufficient for human interaction
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 }

@@ -47,7 +47,7 @@
 // =============================================================================
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
-#define ENABLE_SERIAL_LOGGING
+//#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
 //#define ENABLE_HEAP_MONITOR // Needed to check heap
 

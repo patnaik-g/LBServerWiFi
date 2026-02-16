@@ -36,7 +36,7 @@ void setup() {
     #ifdef ENABLE_SERIAL_LOGGING
     Serial.begin(SERIAL_BAUD_RATE);
     unsigned long start = millis();
-    while (!Serial && millis() - start < 2000) { delay(10); }
+    while (!Serial && millis() - start < 2000) { vTaskDelay(pdMS_TO_TICKS(10)); }
     #endif
     
     pinMode(PIN_STATUS_LED, OUTPUT);
@@ -80,18 +80,27 @@ void setup() {
 
 void loop() {
     if (watchdog.isSystemOff()) {
-        delay(10);
+        // OPTIMIZATION: Deep sleep the loop when system is OFF.
+        vTaskDelay(pdMS_TO_TICKS(250));
         return;
     }
 
     lnStream.process();
 
     static lnMsg tx;
+    bool worked = false;
+    
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
         lnStream.send(&tx);
         xQueueSend(lnToNetQueue, &tx, 0);
         watchdog.inspect(&tx);
+        worked = true;
     }
 
     watchdog.manage();
+    
+    // OPTIMIZATION: Yield if no packet was processed to cool CPU
+    if (!worked) {
+        vTaskDelay(pdMS_TO_TICKS(1)); 
+    }
 }
