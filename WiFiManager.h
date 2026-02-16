@@ -1,15 +1,12 @@
 /*
  * @file WiFiManager
  * @brief Transport Layer Orchestrator
- *
- * CLEANUP: Removed AsyncDebug.h (moved to .cpp).
- * The header defines the class structure; logging implementation details belong in the source.
  */
 
 #ifndef WIFI_MANAGER_H
 #define WIFI_MANAGER_H
 
-#include "Config.h" // KEEPER: Needs DEFAULT_PORT and MAX_CLIENTS for member definitions
+#include "Config.h" 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -22,9 +19,7 @@ typedef void (*WiFiEventCallback)(WiFiEvent_t event);
 
 class WiFiManager {
 public:
-  // Defaults come from Config.h
   WiFiManager(const char* hostname, uint16_t port = DEFAULT_PORT, WiFiEventCallback callback = nullptr);
-
   void begin();
   WiFiServer& getServer();
   void checkNewConnections();
@@ -43,11 +38,13 @@ private:
   
   static WiFiEventCallback eventCallback;
   
-  WiFiClient clientPool[MAX_CLIENTS]; // MAX_CLIENTS comes from Config.h
+  WiFiClient clientPool[MAX_CLIENTS]; 
   bool clientActive[MAX_CLIENTS];
-
   bool connectToWiFi(const String& ssid, const String& password);
   void startAPMode();
+
+  // HEAP MONITORING (Internal logic)
+  void logHeapStatus();
 };
 
 #endif

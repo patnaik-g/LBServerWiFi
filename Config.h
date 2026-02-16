@@ -1,4 +1,4 @@
-/*
+/**
  * @file Config.h
  * @brief Global Configuration & Hardware Pinout
  */
@@ -9,7 +9,7 @@
 // =============================================================================
 // 1. FIRMWARE IDENTITY
 // =============================================================================
-#define BRIDGE_VERSION "2.5.2"
+#define BRIDGE_VERSION "2.5.4"
 
 // =============================================================================
 // 2. FEATURE FLAGS (COMPILE-TIME OPTIONS)
@@ -47,9 +47,9 @@
 // =============================================================================
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
-// Runtime logging ENABLED for v2.5.0 release
-//#define ENABLE_SERIAL_LOGGING
+#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
+#define ENABLE_HEAP_MONITOR
 
 #define SERIAL_BAUD_RATE 115200
 #define LOCONET_QUEUE_DEPTH 32

@@ -5,6 +5,10 @@
 #include "WiFiManager.h"
 #include "AsyncDebug.h" 
 
+#if defined(ENABLE_HEAP_MONITOR)
+#include <esp_heap_caps.h>
+#endif
+
 extern uint32_t lastTrafficMilli;
 WiFiEventCallback WiFiManager::eventCallback = nullptr;
 
@@ -17,12 +21,19 @@ WiFiManager::WiFiManager(const char* hostname, uint16_t port, WiFiEventCallback 
   }
 }
 
+void WiFiManager::logHeapStatus() {
+#if defined(ENABLE_HEAP_MONITOR) && (defined(ENABLE_SERIAL_LOGGING) || defined(ENABLE_TELNET_LOGGING))
+    uint32_t f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    uint32_t l = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    LOG_DEBUG("SYS: Free=%u, MaxBlock=%u, Frag=%.1f%%\n", f, l, 100.0 - ((float)l/f * 100.0));
+#endif
+}
+
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
 
-  // WRAPPED: The 2-second delay and 'w' check are now conditional.
-  // If Serial is disabled, this block is skipped for an instant boot.
   #ifdef ENABLE_SERIAL_LOGGING
+  logHeapStatus(); // Log pre-setup state
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
   
   unsigned long t = millis();
@@ -30,14 +41,8 @@ void WiFiManager::begin() {
       if (Serial.available()) {
           char c = Serial.read();
           if (c == 'w' || c == 'W') {
-              Serial.println("\n!!! WIPE COMMAND RECEIVED !!!");
               prefs.clear();
               prefs.end();
-              for(int i=0; i<10; i++) {
-                  digitalWrite(PIN_STATUS_LED, HIGH);
-                  delay(50);
-                  digitalWrite(PIN_STATUS_LED, LOW);  delay(50);
-              }
               ESP.restart();
           }
       }
@@ -48,7 +53,6 @@ void WiFiManager::begin() {
   String ssid = prefs.getString("ssid", "");
   String password = prefs.getString("password", "");
   String host = prefs.getString("hostname", this->hostname);
-  
   static char finalHostname[32];
   strncpy(finalHostname, host.c_str(), 31);
   this->hostname = finalHostname;
@@ -56,6 +60,7 @@ void WiFiManager::begin() {
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
     prefs.end();
     digitalWrite(PIN_STATUS_LED, HIGH);
+    logHeapStatus(); // Log post-setup state
   } else {
     startAPMode();
   }
@@ -72,10 +77,6 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    #ifdef ENABLE_SERIAL_LOGGING
-    Serial.printf("WiFi Connected! IP: %s\n", WiFi.localIP().toString().c_str());
-    #endif
-    
     vTaskDelay(pdMS_TO_TICKS(1000));
     MDNS.end();
     delay(100);
@@ -84,22 +85,13 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
         #ifdef ENABLE_TELNET_LOGGING
         MDNS.addService("telnet", "tcp", 23);
         #endif
-        #ifdef ENABLE_SERIAL_LOGGING
-        Serial.printf("mDNS responder started: %s.local\n", hostname);
-        #endif
-    } else {
-        #ifdef ENABLE_SERIAL_LOGGING
-        Serial.println("Error setting up MDNS responder!");
-        #endif
     }
     
     ArduinoOTA.setHostname(hostname);
     ArduinoOTA.begin();
-    
     #ifdef ENABLE_TELNET_LOGGING
     TelnetStream.begin();
     #endif
-    
     server.begin();
     return true;
   }
@@ -113,7 +105,7 @@ void WiFiManager::checkNewConnections() {
         clientPool[i] = server.available();
         if (clientPool[i]) {
            clientPool[i].setNoDelay(true);
-           LOG_DEBUG("Client %d connected from %s\n", i, clientPool[i].remoteIP().toString().c_str());
+           LOG_DEBUG("Client %d connected\n", i);
            clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
            clientActive[i] = true;
         }
@@ -127,9 +119,9 @@ void WiFiManager::loopMaintenance(bool anyActive) {
   static uint32_t lastHeapLog = 0;
   uint32_t now = millis();
 
-  // Periodic Heap Check (Every 10 mins)
-  if (now - lastHeapLog > 600000) {
-      LOG_DEBUG("System Health - Free Heap: %u bytes\n", ESP.getFreeHeap());
+  // Periodic Heap Check (Every 1 minute when enabled)
+  if (now - lastHeapLog > 60000) {
+      logHeapStatus();
       lastHeapLog = now;
   }
 
@@ -141,7 +133,6 @@ void WiFiManager::loopMaintenance(bool anyActive) {
       digitalWrite(PIN_STATUS_LED, HIGH);
       lastTrafficMilli = now;
     }
-    
     if (digitalRead(PIN_STATUS_LED) == HIGH && (now - lastTrafficMilli > 10)) {
       digitalWrite(PIN_STATUS_LED, LOW);
     }
@@ -171,40 +162,21 @@ void WiFiManager::broadcast(const char* data, size_t len) {
 
 void WiFiManager::startAPMode() {
   WiFi.softAP(hostname);
-  #ifdef ENABLE_SERIAL_LOGGING
-  Serial.printf("AP Mode Started. Connect to %s to configure WiFi.\n", hostname);
-  #endif
-  
   webServer.on("/", [this]() {
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>";
-    html += "<body><h2>" + String(hostname) + " WiFi Setup</h2>";
-    html += "<form action='/save' method='POST'>";
-    html += "Hostname: <br><input type='text' name='hostname' value='" + String(hostname) + "'><br>";
-    html += "SSID: <br><input type='text' name='ssid'><br>";
-    html += "Password: <br><input type='password' name='pass'><br><br>";
-    html += "<input type='submit' value='Save and Reboot'></form></body></html>";
+    String html = "<html><body><h2>WiFi Setup</h2><form action='/save' method='POST'>";
+    html += "Hostname: <input type='text' name='hostname' value='" + String(hostname) + "'><br>";
+    html += "SSID: <input type='text' name='ssid'><br>";
+    html += "Pass: <input type='password' name='pass'><br>";
+    html += "<input type='submit' value='Save'></form></body></html>";
     webServer.send(200, "text/html", html);
   });
   webServer.on("/save", [this]() {
-    String newSsid = webServer.arg("ssid");
-    String newPass = webServer.arg("pass");
-    String newHost = webServer.arg("hostname");
-    
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body>";
-    
-    if (newSsid.length() > 0) {
-      prefs.putString("ssid", newSsid);
-      prefs.putString("password", newPass);
-      if (newHost.length() > 0) prefs.putString("hostname", newHost);
-      
-      html += "<h2>Settings saved. Rebooting...</h2></body></html>";
-      webServer.send(200, "text/html", html);
-      delay(2000);
-      ESP.restart();
-    } else {
-      html += "<h2>Error: SSID cannot be empty.</h2><a href='/'>Back</a></body></html>";
-      webServer.send(200, "text/html", html);
-    }
+    prefs.putString("ssid", webServer.arg("ssid"));
+    prefs.putString("password", webServer.arg("pass"));
+    prefs.putString("hostname", webServer.arg("hostname"));
+    webServer.send(200, "text/html", "Rebooting...");
+    delay(2000);
+    ESP.restart();
   });
   webServer.begin();
   while (true) { webServer.handleClient(); }
