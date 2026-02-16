@@ -1,9 +1,14 @@
-.temp/
-build/
-libraries/
-state.tar
-*.bin
-*.elf
-*.hex
-*~
-.DS_Store
+# 1. Ignore everything by default
+*
+
+# 2. Allow the .gitignore itself
+!.gitignore
+
+# 3. Allow source code and headers
+!*.ino
+!*.cpp
+!*.h
+
+# 4. Allow project documentation
+!README.md
+!LBServerWiFi_Docs.md
