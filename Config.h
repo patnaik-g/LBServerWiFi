@@ -49,7 +49,7 @@
 // =============================================================================
 #define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
-#define ENABLE_HEAP_MONITOR
+//#define ENABLE_HEAP_MONITOR // Needed to check heap
 
 #define SERIAL_BAUD_RATE 115200
 #define LOCONET_QUEUE_DEPTH 32
