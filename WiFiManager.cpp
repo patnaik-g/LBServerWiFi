@@ -68,8 +68,11 @@ void WiFiManager::begin() {
 
 bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   WiFi.setHostname(hostname);
+  
+  // Improvements 1 & 2: Disable modem sleep and maximize TX power
+  WiFi.setSleep(false);
   WiFi.begin(ssid.c_str(), password.c_str());
-  WiFi.setTxPower(WIFI_POWER_11dBm);
+  //  WiFi.setTxPower(WIFI_POWER_11dBm);
   
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
@@ -93,6 +96,7 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
     TelnetStream.begin();
     #endif
     server.begin();
+    server.setNoDelay(true); // Improvement 3: Disable Nagle's on accepted clients
     return true;
   }
   return false;
