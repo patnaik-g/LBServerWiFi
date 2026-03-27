@@ -36,7 +36,8 @@ void setup() {
     #ifdef ENABLE_SERIAL_LOGGING
     Serial.begin(SERIAL_BAUD_RATE);
     unsigned long start = millis();
-    while (!Serial && millis() - start < 2000) { vTaskDelay(pdMS_TO_TICKS(10)); }
+    while (!Serial && millis() - start < 2000) { vTaskDelay(pdMS_TO_TICKS(10));
+    }
     #endif
     
     pinMode(PIN_STATUS_LED, OUTPUT);
@@ -48,12 +49,11 @@ void setup() {
 
     wifiManager.begin();
     xTaskCreatePinnedToCore(communicationTask, "Comm", 4096, NULL, 1, NULL, 0);
-
     parser.onPacket(CALLBACK_FOR_ALL_OPCODES, [](const lnMsg *p) {
+        if (p->data[0] == 0x81 && p->data[1] == 0x7E) return;
         watchdog.inspect(p);
         xQueueSend(lnToNetQueue, p, 0); 
     });
-
     lnStream.start();
     watchdog.reset();
 
@@ -61,7 +61,6 @@ void setup() {
     LOG_DEBUG("Scanning for Kasa Plug '%s'...\n", KASA_SMARTPLUG_NAME);
     
     systemPlug = KasaPlug::Find(KASA_SMARTPLUG_NAME);
-
     if (systemPlug) {
         LOG_DEBUG("Kasa Plug Found: %s\n", systemPlug->ip);
     } else {
@@ -89,7 +88,6 @@ void loop() {
 
     static lnMsg tx;
     bool worked = false;
-    
     if (xQueueReceive(netToLnQueue, &tx, 0) == pdPASS) {
         lnStream.send(&tx);
         xQueueSend(lnToNetQueue, &tx, 0);
@@ -101,6 +99,6 @@ void loop() {
     
     // OPTIMIZATION: Yield if no packet was processed to cool CPU
     if (!worked) {
-        vTaskDelay(pdMS_TO_TICKS(1)); 
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
