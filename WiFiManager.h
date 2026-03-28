@@ -16,7 +16,6 @@
 #include <functional>
 
 typedef void (*WiFiEventCallback)(WiFiEvent_t event);
-
 class WiFiManager {
 public:
   WiFiManager(const char* hostname, uint16_t port = DEFAULT_PORT, WiFiEventCallback callback = nullptr);
@@ -42,8 +41,6 @@ private:
   bool clientActive[MAX_CLIENTS];
   bool connectToWiFi(const String& ssid, const String& password);
   void startAPMode();
-
-  // HEAP MONITORING (Internal logic)
   void logHeapStatus();
 };
 

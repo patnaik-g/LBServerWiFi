@@ -4,6 +4,7 @@
  */
 #include "WiFiManager.h"
 #include "AsyncDebug.h" 
+#include "lwip/sockets.h"
 
 #if defined(ENABLE_HEAP_MONITOR)
 #include <esp_heap_caps.h>
@@ -31,11 +32,9 @@ void WiFiManager::logHeapStatus() {
 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
-
   #ifdef ENABLE_SERIAL_LOGGING
-  logHeapStatus(); // Log pre-setup state
+  logHeapStatus();
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
-  
   unsigned long t = millis();
   while (millis() - t < 2000) {
       if (Serial.available()) {
@@ -60,7 +59,7 @@ void WiFiManager::begin() {
   if (ssid.length() > 0 && connectToWiFi(ssid, password)) {
     prefs.end();
     digitalWrite(PIN_STATUS_LED, HIGH);
-    logHeapStatus(); // Log post-setup state
+    logHeapStatus();
   } else {
     startAPMode();
   }
@@ -68,12 +67,8 @@ void WiFiManager::begin() {
 
 bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
   WiFi.setHostname(hostname);
-  
-  // Improvements 1 & 2: Disable modem sleep and maximize TX power
   WiFi.setSleep(false);
   WiFi.begin(ssid.c_str(), password.c_str());
-  //  WiFi.setTxPower(WIFI_POWER_11dBm);
-  
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(500);
@@ -96,7 +91,7 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
     TelnetStream.begin();
     #endif
     server.begin();
-    server.setNoDelay(true); // Improvement 3: Disable Nagle's on accepted clients
+    server.setNoDelay(true);
     return true;
   }
   return false;
@@ -108,8 +103,19 @@ void WiFiManager::checkNewConnections() {
       if (!clientActive[i]) {
         clientPool[i] = server.available();
         if (clientPool[i]) {
+           int fd = clientPool[i].fd();
+           int enable = 1;
+           int idle = TCP_KEEP_IDLE;
+           int interval = TCP_KEEP_INTVL;
+           int count = TCP_KEEP_CNT;
+
+           setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+           setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+           setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+           setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+
            clientPool[i].setNoDelay(true);
-           LOG_DEBUG("Client %d connected\n", i);
+           LOG_DEBUG("Client %d connected (Keep-Alive enabled)\n", i);
            clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
            clientActive[i] = true;
         }
@@ -122,8 +128,6 @@ void WiFiManager::checkNewConnections() {
 void WiFiManager::loopMaintenance(bool anyActive) {
   static uint32_t lastHeapLog = 0;
   uint32_t now = millis();
-
-  // Periodic Heap Check (Every 1 minute when enabled)
   if (now - lastHeapLog > 60000) {
       logHeapStatus();
       lastHeapLog = now;

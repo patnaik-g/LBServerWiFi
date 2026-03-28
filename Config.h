@@ -22,6 +22,11 @@
 #define TIMEOUT_TRACK_MS 900000   
 #define TIMEOUT_SYSTEM_MS 1800000 
 
+// TCP Keep-Alive Settings (Seconds)
+#define TCP_KEEP_IDLE 10
+#define TCP_KEEP_INTVL 5
+#define TCP_KEEP_CNT 3
+
 // =============================================================================
 // 4. HARDWARE PINOUT (ESP32)
 // =============================================================================
@@ -49,7 +54,7 @@
 // =============================================================================
 //#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
-//#define ENABLE_HEAP_MONITOR // Needed to check heap
+//#define ENABLE_HEAP_MONITOR 
 
 #define SERIAL_BAUD_RATE 115200
 #define LOCONET_QUEUE_DEPTH 64
