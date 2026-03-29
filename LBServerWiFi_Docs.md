@@ -72,6 +72,7 @@ To support diverse hardware setups, "Tier 2" protection is controlled via a comp
 
 | Version | Date | Changes |
 | :--- | :--- | :--- |
+| **v2.5.5** | 2026-03-29 | **Traffic Gating & Logging**: Implemented software-level gating for incoming LocoNet traffic to suppress noise from unpowered bus[cite: 181]. Added explicit incoming packet logging to debug console[cite: 188]. Optimized broadcast and LED pulses to trigger only when network clients are active[cite: 186, 187]. Refined PowerLine task for atomic power state synchronization[cite: 200, 204]. |
 | **v2.5.4** | 2026-02-15 | **Memory Stability & Headless Optimization**: Fixed overnight heap fragmentation via "Silent Keep-Alive" logic. Moved critical network and JSON buffers to static memory (BSS) to prevent stack overflow. Optimized for headless boot (instant startup without Serial) and added 10-minute heap health telemetry. Corrected hardware pinout and LocoNet opcodes. |
 | **v2.5.2** | 2026-02-02 | **Traffic LED Logic**: Implemented "Solid Idle / Active Pulse" logic. LED stays solid ON when 0 clients are connected. Pulses OFF/ON (10ms) for traffic or 10s heartbeat when active. |
 | **v2.5.1** | 2026-02-01 | **Portal Fix**: Restored functional WiFi Setup Portal with HTML input forms. Added `viewport` meta tag for mobile scaling. Fixed hardcoded hostname in AP Mode logs and web headers. |
