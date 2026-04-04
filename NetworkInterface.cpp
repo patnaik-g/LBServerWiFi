@@ -2,6 +2,7 @@
 #include "AsyncDebug.h"
 
 uint32_t lastTrafficMilli = 0;
+
 void communicationTask(void *pvParameters) {
     static ProtocolBuffer inbound;
     static char out[128];
@@ -9,7 +10,8 @@ void communicationTask(void *pvParameters) {
     const uint32_t SIG_SEND = 0x444E4553; 
 
     out[0] = 'R'; out[1] = 'E'; out[2] = 'C'; out[3] = 'E';
-    out[4] = 'I'; out[5] = 'V'; out[6] = 'E';
+    out[4] = 'I';
+    out[5] = 'V'; out[6] = 'E';
 
     for (;;) {
         uint32_t now = millis();
@@ -45,7 +47,8 @@ void communicationTask(void *pvParameters) {
 
         lnMsg rx;
         if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
-            if (g_SystemPower) {
+            // Bypass gate for power status packets (0x82/0x83) even if layout power is off
+            if (g_SystemPower || rx.data[0] == 0x82 || rx.data[0] == 0x83) {
                 uint8_t pktLen = getPacketLen(&rx);
                 static const char hex[] = "0123456789ABCDEF";
                 int pos = 7;
@@ -54,7 +57,7 @@ void communicationTask(void *pvParameters) {
                     out[pos++] = hex[(rx.data[i] >> 4) & 0x0F];
                     out[pos++] = hex[rx.data[i] & 0x0F];
                 }
-                out[pos++] = '\r'; 
+                out[pos++] = '\r';
                 out[pos++] = '\n';
                 
                 if (anyActive) {
@@ -62,12 +65,9 @@ void communicationTask(void *pvParameters) {
                     digitalWrite(PIN_STATUS_LED, HIGH);
                     lastTrafficMilli = now;
                 }
-
-                // Explicit logging of incoming traffic to console
                 out[pos] = '\0';
                 LOG_DEBUG("%s", out);
             }
-            // If !g_SystemPower, packet is popped and naturally discarded
         }
 
         wifiManager.loopMaintenance(anyActive);

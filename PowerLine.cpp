@@ -1,15 +1,29 @@
 #include "PowerLine.h"
+#include "Config.h"
 #include "Common.h" 
 #include "AsyncDebug.h"
 #include "LocoNetPackets.h"   
 
+#ifdef SYSTEM_POWER_CONTROL
+#include "driver/uart.h"
+#endif
+
 PowerLine::PowerLine() {
   debouncer = Bounce();
   taskHandle = NULL;
+#ifdef SYSTEM_POWER_CONTROL
+  _lnStream = NULL;
+#endif
 }
 
+#ifdef SYSTEM_POWER_CONTROL
+void PowerLine::begin(int p, LocoNetStreamESP32* lnStream) {
+  pin = p;
+  _lnStream = lnStream;
+#else
 void PowerLine::begin(int p) {
   pin = p;
+#endif
   pinMode(pin, INPUT);
   debouncer.attach(pin, INPUT);
   debouncer.interval(50);
@@ -23,11 +37,18 @@ void PowerLine::task(void* param) {
   PowerLine* self = (PowerLine*)param;
   for (;;) {
     self->debouncer.update();
-    bool reading = (self->debouncer.read() == HIGH);
     
     if (self->debouncer.fell()) {
         LOG_DEBUG("PWR: OFF\n");
         g_TrackPower = false;
+        
+#ifdef SYSTEM_POWER_CONTROL
+        uart_driver_delete((uart_port_t)1);
+        pinMode(PIN_LOCONET_TX, OUTPUT);
+        digitalWrite(PIN_LOCONET_TX, LOW);
+        pinMode(PIN_LOCONET_RX, INPUT_PULLUP);
+#endif
+
         if (lnToNetQueue != NULL) {
             xQueueSend(lnToNetQueue, (void *)&PACKET_GP_OFF, 0);
         }
@@ -35,9 +56,14 @@ void PowerLine::task(void* param) {
     
     if (self->debouncer.rose()) {
         LOG_DEBUG("PWR: ON\n");
+#ifdef SYSTEM_POWER_CONTROL
+        pinMode(PIN_LOCONET_TX, OUTPUT);
+        digitalWrite(PIN_LOCONET_TX, LOW);
+        if (self->_lnStream) self->_lnStream->start();
+#endif
     }
 
-    g_SystemPower = reading;
+    g_SystemPower = (self->debouncer.read() == HIGH);
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }

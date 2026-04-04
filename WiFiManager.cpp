@@ -4,6 +4,8 @@
  */
 #include "WiFiManager.h"
 #include "AsyncDebug.h" 
+#include "Common.h"
+#include "LocoNetPackets.h"
 #include "lwip/sockets.h"
 
 #if defined(ENABLE_HEAP_MONITOR)
@@ -108,15 +110,20 @@ void WiFiManager::checkNewConnections() {
            int idle = TCP_KEEP_IDLE;
            int interval = TCP_KEEP_INTVL;
            int count = TCP_KEEP_CNT;
-
            setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
            setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
            setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
            setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
-
            clientPool[i].setNoDelay(true);
-           LOG_DEBUG("Client %d connected (Keep-Alive enabled)\n", i);
+           LOG_DEBUG("Client %d connected\n", i);
+           
            clientPool[i].print("VERSION " BRIDGE_VERSION "\r\n");
+           
+           // Synchronize Client State via Queue
+           if (lnToNetQueue != NULL) {
+               xQueueSend(lnToNetQueue, (void*)(g_TrackPower ? &PACKET_GP_ON : &PACKET_GP_OFF), 0);
+           }
+           
            clientActive[i] = true;
         }
         break;

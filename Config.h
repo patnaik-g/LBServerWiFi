@@ -19,13 +19,8 @@
 // =============================================================================
 // 3. SAFETY TIMEOUTS (MILLISECONDS)
 // =============================================================================
-#define TIMEOUT_TRACK_MS 900000   
-#define TIMEOUT_SYSTEM_MS 1800000 
-
-// TCP Keep-Alive Settings (Seconds)
-#define TCP_KEEP_IDLE 10
-#define TCP_KEEP_INTVL 5
-#define TCP_KEEP_CNT 3
+#define TIMEOUT_TRACK_MS 90000 
+#define TIMEOUT_SYSTEM_MS 180000
 
 // =============================================================================
 // 4. HARDWARE PINOUT (ESP32)
@@ -40,9 +35,13 @@
 // =============================================================================
 #define DEFAULT_HOSTNAME "lbserver"
 #define DEFAULT_PORT 1234
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 4
 #define MDNS_SERVICE_NAME "loconetovertcpserver"
 #define MDNS_SERVICE_PROTO "tcp"
+// TCP Keep-Alive Settings (Seconds)
+#define TCP_KEEP_IDLE 10
+#define TCP_KEEP_INTVL 5
+#define TCP_KEEP_CNT 3
 
 // =============================================================================
 // 6. SMART PLUG INTEGRATION
@@ -52,7 +51,7 @@
 // =============================================================================
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
-//#define ENABLE_SERIAL_LOGGING
+#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
 //#define ENABLE_HEAP_MONITOR 
 

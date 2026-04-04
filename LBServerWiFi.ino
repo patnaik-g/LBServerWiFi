@@ -42,6 +42,12 @@ void setup() {
     
     pinMode(PIN_STATUS_LED, OUTPUT);
     
+#ifdef SYSTEM_POWER_CONTROL
+    pinMode(PIN_LOCONET_RX, INPUT_PULLUP);
+    pinMode(PIN_LOCONET_TX, OUTPUT);
+    digitalWrite(PIN_LOCONET_TX, LOW);
+#endif
+    
     Debug::begin();
 
     lnToNetQueue = xQueueCreate(LOCONET_QUEUE_DEPTH, sizeof(lnMsg));
@@ -72,7 +78,11 @@ void setup() {
     watchdog.begin(&lnStream, lnToNetQueue);
 #endif
 
+#ifdef SYSTEM_POWER_CONTROL
+    powerMonitor.begin(PIN_POWER_MONITOR, &lnStream);
+#else
     powerMonitor.begin(PIN_POWER_MONITOR);
+#endif
     
     LOG_DEBUG("%s initialized\n", BRIDGE_VERSION);
 }
