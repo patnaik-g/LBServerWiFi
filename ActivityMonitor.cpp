@@ -49,7 +49,8 @@ void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQ
 }
 
 // [DISABLED] Stubs (Optimized away by compiler)
-bool ActivityMonitor::checkSystemTimeout(uint32_t now) { return false; }
+bool ActivityMonitor::checkSystemTimeout(uint32_t now) { return false;
+}
 void ActivityMonitor::performSystemShutdown() { /* No-Op */ }
 
 #endif
@@ -58,10 +59,12 @@ void ActivityMonitor::performSystemShutdown() { /* No-Op */ }
 // --- 2. COMMON LOGIC ---
 
 bool ActivityMonitor::isSystemOff() {
+#ifdef SYSTEM_POWER_CONTROL
     if (!g_SystemPower) {
         _wasSystemOff = true;
         return true;
     }
+#endif
     return false;
 }
 
@@ -72,7 +75,6 @@ void ActivityMonitor::reset() {
 void ActivityMonitor::inspect(const lnMsg *p) {
     uint8_t opc = p->data[0];
     uint32_t now = millis();
-
     if (opc == OPC_GPON)  { 
         g_TrackPower = true;  
         lastActivity = now;
@@ -90,7 +92,9 @@ void ActivityMonitor::inspect(const lnMsg *p) {
 }
 
 bool ActivityMonitor::shouldTriggerTrackOff(uint32_t now) {
+#ifdef SYSTEM_POWER_CONTROL
     if (!g_SystemPower) return false;
+#endif
     if (g_TrackPower && (now - lastActivity > trackTimeoutMs)) {
         g_TrackPower = false;
         return true;
@@ -100,7 +104,6 @@ bool ActivityMonitor::shouldTriggerTrackOff(uint32_t now) {
 
 void ActivityMonitor::manage() {
     uint32_t now = millis();
-
     // 1. Handle Wake-Up Logic
     if (_wasSystemOff) {
         LOG_DEBUG("System Power Restored. Resetting Idle Timer.\n");
