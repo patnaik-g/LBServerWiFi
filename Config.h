@@ -9,7 +9,7 @@
 // =============================================================================
 // 1. FIRMWARE IDENTITY
 // =============================================================================
-#define BRIDGE_VERSION "2.5.4"
+#define BRIDGE_VERSION "2.5.5"
 
 // =============================================================================
 // 2. FEATURE FLAGS (COMPILE-TIME OPTIONS)
@@ -19,8 +19,8 @@
 // =============================================================================
 // 3. SAFETY TIMEOUTS (MILLISECONDS)
 // =============================================================================
-#define TIMEOUT_TRACK_MS 90000 
-#define TIMEOUT_SYSTEM_MS 180000
+#define TIMEOUT_TRACK_MS 900000
+#define TIMEOUT_SYSTEM_MS 1800000
 
 // =============================================================================
 // 4. HARDWARE PINOUT (ESP32)
@@ -53,7 +53,6 @@
 // =============================================================================
 #define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
-//#define ENABLE_HEAP_MONITOR 
 
 #define SERIAL_BAUD_RATE 115200
 #define LOCONET_QUEUE_DEPTH 64
