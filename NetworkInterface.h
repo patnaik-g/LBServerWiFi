@@ -1,20 +1,17 @@
 /*
  * @file NetworkInterface
- * @brief LocoNet-over-TCP 
- * Protocol Handler
+ * @brief LocoNet-over-TCP Protocol Handler
  */
 
 #ifndef NETWORK_INTERFACE_H
 #define NETWORK_INTERFACE_H
 
 #include <Arduino.h>
-#include "Common.h"      // Provides: g_SystemPower, g_TrackPower, Queues
+#include "Common.h"
 #include "WiFiManager.h" 
 #include "LocoNetStreamESP32.h"
 
-// Note: wifiManager remains specific to the Network Interface layer
 extern WiFiManager wifiManager;
-
 union ProtocolBuffer {
     char asChars[256];
     uint32_t asUint32[64];
@@ -26,8 +23,7 @@ static inline uint8_t fastHexToByte(char high, char low) {
         if (c >= 'a') return c - 'a' + 10;
         return c - '0';
     };
-    return (toN(high) << 4) |
-           (toN(low) & 0x0F);
+    return (toN(high) << 4) | (toN(low) & 0x0F);
 }
 
 static inline uint8_t getPacketLen(const lnMsg *p) {
@@ -41,6 +37,15 @@ static inline uint8_t getPacketLen(const lnMsg *p) {
     }
 }
 
-void communicationTask(void *pvParameters);
+static inline bool validateChecksum(const lnMsg *p) {
+    uint8_t len = getPacketLen(p);
+    if (len < 2) return false;
+    uint8_t chk = 0;
+    for (uint8_t i = 0; i < len - 1; i++) {
+        chk ^= p->data[i];
+    }
+    return (p->data[len - 1] == (uint8_t)(chk ^ 0xFF));
+}
 
+void communicationTask(void *pvParameters);
 #endif
