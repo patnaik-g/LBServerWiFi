@@ -3,7 +3,7 @@
 
 void communicationTask(void *pvParameters) {
     static ProtocolBuffer inbound;
-    static char out[128];
+    static char out[512];
     static char rsp_ok[] = "SENT OK\r\n";
     const uint32_t SIG_SEND = 0x444E4553; 
 

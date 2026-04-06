@@ -34,7 +34,7 @@ void WiFiManager::logHeapStatus() {
 
 void WiFiManager::begin() {
   prefs.begin("wifi", false);
-  #ifdef ENABLE_SERIAL_LOGGING
+#ifdef ENABLE_SERIAL_LOGGING
   logHeapStatus();
   Serial.println("\n[BOOT] Waiting 2s. Send 'w' to WIPE settings...");
   unsigned long t = millis();
@@ -82,9 +82,9 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
     delay(100);
     if (MDNS.begin(hostname)) {
         MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, port);
-        #ifdef ENABLE_TELNET_LOGGING
+#ifdef ENABLE_TELNET_LOGGING
         MDNS.addService("telnet", "tcp", 23);
-        #endif
+#endif
     }
     
     ArduinoOTA.setHostname(hostname);
@@ -101,6 +101,7 @@ bool WiFiManager::connectToWiFi(const String& ssid, const String& password) {
 
 void WiFiManager::checkNewConnections() {
   if (server.hasClient()) {
+    bool slotFound = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
       if (!clientActive[i]) {
         clientPool[i] = server.available();
@@ -126,8 +127,14 @@ void WiFiManager::checkNewConnections() {
            
            clientActive[i] = true;
         }
+        slotFound = true;
         break;
       }
+    }
+    if (!slotFound) {
+        WiFiClient rejected = server.available();
+        rejected.stop();
+        LOG_DEBUG("Connection rejected: MAX_CLIENTS reached\n");
     }
   }
 }
@@ -197,4 +204,5 @@ void WiFiManager::startAPMode() {
   while (true) { webServer.handleClient(); }
 }
 
-WiFiServer& WiFiManager::getServer() { return server; }
+WiFiServer& WiFiManager::getServer() { return server;
+}
