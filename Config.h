@@ -51,7 +51,7 @@
 // =============================================================================
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
-#define ENABLE_SERIAL_LOGGING
+//#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
 
 #define SERIAL_BAUD_RATE 115200

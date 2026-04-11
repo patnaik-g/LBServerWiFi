@@ -15,6 +15,7 @@ void communicationTask(void *pvParameters) {
         bool anyActive = false;
         wifiManager.forEachActiveClient([&](WiFiClient& client, int i) {
             anyActive = true;
+            client.setTimeout(10);
             while (client.available() > 0) {
                 size_t len = client.readBytesUntil('\n', inbound.asChars, 255);
                 if (len >= 4 && *(uint32_t*)inbound.asChars == SIG_SEND) {
@@ -22,7 +23,7 @@ void communicationTask(void *pvParameters) {
                     lnMsg tx; uint8_t txIdx = 0;
                     char *p = inbound.asChars + 4;
                     while (p < (inbound.asChars + len) && txIdx < sizeof(tx.data)) {
-                        if (*p <= 32) { p++; continue; }
+                         if (*p <= 32) { p++; continue; }
                         if (*p && *(p + 1)) {
                             tx.data[txIdx++] = fastHexToByte(*p, *(p + 1));
                             p += 2;
@@ -35,12 +36,12 @@ void communicationTask(void *pvParameters) {
                             if (g_SystemPower) {
 #endif
                                 if (xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
-                                    LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
+                                     LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
                                 }
 #ifdef SYSTEM_POWER_CONTROL
                             } else {
                                 // Power Off: Echo and Spoof Response
-                                xQueueSend(lnToNetQueue, &tx, 0); 
+                                 xQueueSend(lnToNetQueue, &tx, 0); 
                                 
                                 if (tx.data[0] == 0xBB) {
                                     // Spoof Slot Data Response (0xE7) for Address Request
@@ -48,7 +49,7 @@ void communicationTask(void *pvParameters) {
                                     uint8_t raw[] = { 
                                         0xE7, 0x0E, 0x01, 0x00, 0x00, 0x00, 0x00, 
                                         0x06, 0x00, 0x00, 0x00, 0x00, 0x00 
-                                    };
+                                     };
                                     memcpy(slotRsp.data, raw, 13);
                                     
                                     uint8_t chk = 0;
@@ -78,7 +79,7 @@ void communicationTask(void *pvParameters) {
             }
         });
         lnMsg rx;
-        if (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
+        while (xQueueReceive(lnToNetQueue, &rx, 0) == pdPASS) {
             uint8_t pktLen = getPacketLen(&rx);
             static const char hex[] = "0123456789ABCDEF";
             int pos = 7;
