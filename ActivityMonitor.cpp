@@ -4,14 +4,17 @@
 
 // --- 1. FEATURE IMPLEMENTATION (Enabled/Disabled Variants) ---
 
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_KASA_CONTROL
 #include "KasaSmartPlug.h" 
 
 // [ENABLED] Constructor & Setup
 ActivityMonitor::ActivityMonitor(uint32_t trackTimeout, uint32_t systemTimeout) 
-    : lastActivity(0), _wasSystemOff(false), 
-      trackTimeoutMs(trackTimeout), systemTimeoutMs(systemTimeout),
-      _lnStream(nullptr), _lnToNetQueue(nullptr), _plug(nullptr) {}
+    : lastActivity(0), trackTimeoutMs(trackTimeout), systemTimeoutMs(systemTimeout),
+      _lnStream(nullptr), _lnToNetQueue(nullptr), _plug(nullptr) {
+#ifdef ENABLE_POWER_MONITOR
+    _wasSystemOff = false;
+#endif
+}
 
 void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue, KasaPlug* plug) {
     _lnStream = lnStream;
@@ -21,7 +24,9 @@ void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQ
 
 // [ENABLED] Helper Logic
 bool ActivityMonitor::checkSystemTimeout(uint32_t now) {
+#ifdef ENABLE_POWER_MONITOR
     if (!g_SystemPower) return false;
+#endif
     return (now - lastActivity > systemTimeoutMs);
 }
 
@@ -39,9 +44,12 @@ void ActivityMonitor::performSystemShutdown() {
 
 // [DISABLED] Constructor & Setup
 ActivityMonitor::ActivityMonitor(uint32_t trackTimeout) 
-    : lastActivity(0), _wasSystemOff(false), 
-      trackTimeoutMs(trackTimeout),
-      _lnStream(nullptr), _lnToNetQueue(nullptr) {}
+    : lastActivity(0), trackTimeoutMs(trackTimeout),
+      _lnStream(nullptr), _lnToNetQueue(nullptr) {
+#ifdef ENABLE_POWER_MONITOR
+    _wasSystemOff = false;
+#endif
+}
 
 void ActivityMonitor::begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue) {
     _lnStream = lnStream;
@@ -58,15 +66,15 @@ void ActivityMonitor::performSystemShutdown() { /* No-Op */ }
 
 // --- 2. COMMON LOGIC ---
 
+#ifdef ENABLE_POWER_MONITOR
 bool ActivityMonitor::isSystemOff() {
-#ifdef SYSTEM_POWER_CONTROL
     if (!g_SystemPower) {
         _wasSystemOff = true;
         return true;
     }
-#endif
     return false;
 }
+#endif
 
 void ActivityMonitor::reset() {
     lastActivity = millis();
@@ -92,7 +100,7 @@ void ActivityMonitor::inspect(const lnMsg *p) {
 }
 
 bool ActivityMonitor::shouldTriggerTrackOff(uint32_t now) {
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_POWER_MONITOR
     if (!g_SystemPower) return false;
 #endif
     if (g_TrackPower && (now - lastActivity > trackTimeoutMs)) {
@@ -105,11 +113,15 @@ bool ActivityMonitor::shouldTriggerTrackOff(uint32_t now) {
 void ActivityMonitor::manage() {
     uint32_t now = millis();
     // 1. Handle Wake-Up Logic
+#ifdef ENABLE_POWER_MONITOR
     if (_wasSystemOff) {
-        LOG_DEBUG("System Power Restored. Resetting Idle Timer.\n");
-        lastActivity = now;
-        _wasSystemOff = false;
+        if (g_SystemPower) {
+            LOG_DEBUG("System Power Restored. Resetting Idle Timer.\n");
+            lastActivity = now;
+            _wasSystemOff = false;
+        }
     }
+#endif
 
     // 2. TIER 1: Track Power
     if (shouldTriggerTrackOff(now)) {

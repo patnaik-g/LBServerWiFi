@@ -10,7 +10,7 @@
 #include "Config.h"
 
 // Global System State
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_POWER_MONITOR
 extern volatile bool g_SystemPower;
 #endif
 extern volatile bool g_TrackPower;

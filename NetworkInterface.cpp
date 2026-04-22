@@ -32,13 +32,13 @@ void communicationTask(void *pvParameters) {
                     if (txIdx > 0) {
                         if (validateChecksum(&tx)) {
                             client.write(rsp_ok, 9);
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_POWER_MONITOR
                             if (g_SystemPower) {
 #endif
                                 if (xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
                                      LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
                                 }
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_POWER_MONITOR
                             } else {
                                 // Power Off: Echo and Spoof Response
                                  xQueueSend(lnToNetQueue, &tx, 0); 
@@ -98,7 +98,7 @@ void communicationTask(void *pvParameters) {
         }
 
         wifiManager.loopMaintenance(anyActive);
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_POWER_MONITOR
         vTaskDelay(pdMS_TO_TICKS(g_SystemPower ? 1 : 20));
 #else
         vTaskDelay(pdMS_TO_TICKS(1));

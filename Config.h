@@ -14,7 +14,8 @@
 // =============================================================================
 // 2. FEATURE FLAGS (COMPILE-TIME OPTIONS)
 // =============================================================================
-#define SYSTEM_POWER_CONTROL 
+#define ENABLE_POWER_MONITOR
+#define ENABLE_KASA_CONTROL
 
 // =============================================================================
 // 3. SAFETY TIMEOUTS (MILLISECONDS)

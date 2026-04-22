@@ -3,7 +3,8 @@
 #include "Common.h" 
 #include "AsyncDebug.h"
 #include "LocoNetPackets.h"   
-#include "driver/uart.h"
+
+#ifdef ENABLE_POWER_MONITOR
 
 PowerLine::PowerLine() {
   debouncer = Bounce();
@@ -27,16 +28,9 @@ void PowerLine::task(void* param) {
   PowerLine* self = (PowerLine*)param;
   for (;;) {
     self->debouncer.update();
-    
     if (self->debouncer.fell()) {
         LOG_DEBUG("PWR: OFF\n");
-        g_TrackPower = false;
-        
-        uart_driver_delete((uart_port_t)1);
-        pinMode(PIN_LOCONET_TX, OUTPUT);
-        digitalWrite(PIN_LOCONET_TX, LOW);
-        pinMode(PIN_LOCONET_RX, INPUT_PULLUP);
-
+        g_TrackPower = false; 
         if (lnToNetQueue != NULL) {
             xQueueSend(lnToNetQueue, (void *)&PACKET_GP_OFF, 0);
         }
@@ -44,12 +38,11 @@ void PowerLine::task(void* param) {
     
     if (self->debouncer.rose()) {
         LOG_DEBUG("PWR: ON\n");
-        pinMode(PIN_LOCONET_TX, OUTPUT);
-        digitalWrite(PIN_LOCONET_TX, LOW);
-        if (self->_lnStream) self->_lnStream->start();
     }
 
     g_SystemPower = (self->debouncer.read() == HIGH);
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
+
+#endif

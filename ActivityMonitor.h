@@ -11,19 +11,23 @@
 #include <Arduino.h>
 #include <LocoNetStreamESP32.h>
 
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_KASA_CONTROL
 class KasaPlug;
 #endif
 
 class ActivityMonitor {
   private:
+    // --- Core Members ---
     uint32_t lastActivity;
-    bool _wasSystemOff;
     const uint32_t trackTimeoutMs;
-    
     LocoNetStreamESP32* _lnStream;
     QueueHandle_t _lnToNetQueue;
-#ifdef SYSTEM_POWER_CONTROL
+
+    // --- Conditional Members ---
+#ifdef ENABLE_POWER_MONITOR
+    bool _wasSystemOff;
+#endif
+#ifdef ENABLE_KASA_CONTROL
     const uint32_t systemTimeoutMs;
     KasaPlug* _plug;
 #endif
@@ -32,7 +36,7 @@ class ActivityMonitor {
     bool checkSystemTimeout(uint32_t now);
     void performSystemShutdown();
 public:
-#ifdef SYSTEM_POWER_CONTROL
+#ifdef ENABLE_KASA_CONTROL
     ActivityMonitor(uint32_t trackTimeout, uint32_t systemTimeout);
     void begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue, KasaPlug* plug);
 #else
@@ -40,7 +44,9 @@ public:
     void begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue);
 #endif
 
+#ifdef ENABLE_POWER_MONITOR
     bool isSystemOff(); 
+#endif
     void reset();
     void inspect(const lnMsg *p);
     void manage();

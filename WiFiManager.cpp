@@ -151,11 +151,7 @@ void WiFiManager::loopMaintenance(bool anyActive) {
     digitalWrite(PIN_STATUS_LED, HIGH);
     ArduinoOTA.handle();
   } else {
-    if (now - lastTrafficMilli > 10000) {
-      digitalWrite(PIN_STATUS_LED, HIGH);
-      lastTrafficMilli = now;
-    }
-    if (digitalRead(PIN_STATUS_LED) == HIGH && (now - lastTrafficMilli > 10)) {
+     if (digitalRead(PIN_STATUS_LED) == HIGH && (now - lastTrafficMilli > 10)) {
       digitalWrite(PIN_STATUS_LED, LOW);
     }
   }
