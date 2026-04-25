@@ -44,9 +44,6 @@ public:
     void begin(LocoNetStreamESP32* lnStream, QueueHandle_t lnToNetQueue);
 #endif
 
-#ifdef ENABLE_POWER_MONITOR
-    bool isSystemOff(); 
-#endif
     void reset();
     void inspect(const lnMsg *p);
     void manage();

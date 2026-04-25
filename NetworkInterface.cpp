@@ -55,15 +55,10 @@ void communicationTask(void *pvParameters) {
             if (validateChecksum(&tx)) {
       
               client.write(rsp_ok, 9);
-#ifdef ENABLE_POWER_MONITOR
-
               if (g_SystemPower) {
-#endif
-
                 if (xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
                   LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
                 }
-#ifdef ENABLE_POWER_MONITOR
               } else {
                 // Power Off: Echo and Spoof Response
 
@@ -100,7 +95,6 @@ void communicationTask(void *pvParameters) {
                   LOG_DEBUG("RX[%d]: %s (Spoofed B4 - Power Off)\n", i, inbound.asChars);
                 }
               }
-#endif
             } else {
               LOG_DEBUG("CRC FAIL: %s\n", inbound.asChars);
             }
@@ -133,10 +127,6 @@ void communicationTask(void *pvParameters) {
     // Manage idle timeouts. This is co-located with inspect() for thread safety.
     watchdog.manage();
     wifiManager.loopMaintenance(anyActive);
-    #ifdef ENABLE_POWER_MONITOR
     vTaskDelay(pdMS_TO_TICKS(g_SystemPower ? 1 : 20));
-#else
-    vTaskDelay(pdMS_TO_TICKS(1));
-    #endif
   }
 }
