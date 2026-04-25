@@ -11,7 +11,13 @@
 
 // Global System State
 #ifdef ENABLE_POWER_MONITOR
-extern volatile bool g_SystemPower;
+  // If power monitoring is enabled, declare g_SystemPower as a global variable.
+  // Its state will be managed by the PowerLine task.
+  extern volatile bool g_SystemPower;
+#else
+  // If power monitoring is disabled, define g_SystemPower as a compile-time constant 'true'.
+  // This makes the system behave as if power is always on.
+  #define g_SystemPower true
 #endif
 extern volatile bool g_TrackPower;
 extern uint32_t lastTrafficMilli;
