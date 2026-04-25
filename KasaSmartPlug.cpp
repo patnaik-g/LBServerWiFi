@@ -9,6 +9,7 @@ KasaPlug::KasaPlug(const char *ipAddress) {
     dest_addr.sin_addr.s_addr = inet_addr(ip);
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(9999);
+    _isShutdownLatched = false;
     sock = -1;
 }
 
@@ -97,7 +98,9 @@ int KasaPlug::SendQuery(const char *cmd, char *buf, int len, long timeout) {
         char sBuf[128];
         if (send(sock, sBuf, Encrypt(cmd, strlen(cmd), 1, sBuf), 0) > 0) {
             rLen = recv(sock, buf, len, 0);
-            if (rLen > 0) rLen = Decrypt(buf, rLen, buf, 4);
+            if (rLen > 0) {
+                rLen = Decrypt(buf, rLen, buf, 4);
+            }
         }
         CloseSock();
     }
@@ -133,6 +136,30 @@ bool KasaPlug::SetRelayVerified(uint8_t target, int retries) {
         delay(1000);
     }
     return false;
+}
+
+void KasaPlug::resetShutdownLatch() {
+    if (_isShutdownLatched) {
+        _isShutdownLatched = false;
+    }
+}
+
+bool KasaPlug::attemptShutdown(int retries) {
+    if (_isShutdownLatched) {
+        // Shutdown has already occurred and has not been reset.
+        return true;
+    }
+
+    // We can proceed with the shutdown attempt.
+    if (SetRelayVerified(0, retries)) {
+        // On success, we set the latch to prevent any further shutdown attempts
+        // until the system is manually power-cycled and reset.
+        _isShutdownLatched = true;
+        return true;
+    } else {
+        // On failure, the latch remains open so another attempt can be made later.
+        return false;
+    }
 }
 
 uint16_t KasaPlug::Encrypt(const char *d, int len, uint8_t add, char *out) {

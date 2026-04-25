@@ -2,6 +2,7 @@
 #define KASA_SMART_PLUG_H
 
 #include <WiFi.h>
+#include "freertos/semphr.h"
 #include "lwip/sockets.h"
 #include <ArduinoJson.h>
 
@@ -12,6 +13,7 @@ private:
     struct sockaddr_in dest_addr;
     int sock;
     StaticJsonDocument<512> doc;
+    bool _isShutdownLatched;
     
     bool OpenSock();
     void CloseSock();
@@ -27,6 +29,8 @@ public:
 
     bool SetRelay(uint8_t targetState);
     bool SetRelayVerified(uint8_t targetState, int maxRetries = 5);
+    void resetShutdownLatch();
+    bool attemptShutdown(int retries = 5);
     int SyncState();
     
     // Static Factory
