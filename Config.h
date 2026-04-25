@@ -52,12 +52,12 @@
 // =============================================================================
 // 7. ADVANCED DEBUGGING & TUNING
 // =============================================================================
-//#define ENABLE_SERIAL_LOGGING
+#define ENABLE_SERIAL_LOGGING
 #define ENABLE_TELNET_LOGGING
 
 #define SERIAL_BAUD_RATE 115200
-#define LOCONET_QUEUE_DEPTH 64
-#define DEBUG_QUEUE_DEPTH 64
+#define LOCONET_QUEUE_DEPTH 128
+#define DEBUG_QUEUE_DEPTH 128
 #define DEBUG_MSG_LEN 256
 
 #endif
