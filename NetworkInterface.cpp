@@ -7,6 +7,39 @@
 // This centralizes all activity-related logic to this task for thread-safety.
 extern ActivityMonitor watchdog;
 
+/*
+ * @brief Queues a raw data buffer to be sent to network clients.
+ * 
+ * This overload is for mutable data. It calculates the LocoNet checksum
+ * before queueing the packet.
+ * @param data The raw byte buffer to process and send.
+ * @param len The length of the data buffer.
+ */
+static inline void sendSpoofedPacket(uint8_t* data, size_t len) {
+    if (len < 2) return; // Basic safety for checksum
+    uint8_t chk = 0;
+    for (size_t i = 0; i < len - 1; i++) chk ^= data[i];
+    data[len - 1] = ~chk;
+
+    lnMsg msg;
+    memcpy(msg.data, data, len);
+    xQueueSend(lnToNetQueue, &msg, 0);
+}
+
+/**
+ * @brief Queues a raw data buffer to be sent to network clients.
+ * 
+ * This overload is for immutable (const) data that has a pre-calculated
+ * checksum. It skips the checksum calculation.
+ * @param data The raw byte buffer to send.
+ * @param len The length of the data buffer.
+ */
+static inline void sendSpoofedPacket(const uint8_t* data, size_t len) {
+    lnMsg msg;
+    memcpy(msg.data, data, len);
+    xQueueSend(lnToNetQueue, &msg, 0);
+}
+
 void communicationTask(void *pvParameters) {
   static ProtocolBuffer inbound;
   static char out[512];
@@ -53,46 +86,43 @@ void communicationTask(void *pvParameters) {
           if (txIdx > 0) {
 
             if (validateChecksum(&tx)) {
-      
+              // Log the valid incoming command immediately for clear diagnostics.
+              LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
               client.write(rsp_ok, 9);
               if (g_SystemPower) {
-                if (xQueueSend(netToLnQueue, &tx, 0) == pdPASS) {
-                  LOG_DEBUG("RX[%d]: %s\n", i, inbound.asChars);
-                }
+                xQueueSend(netToLnQueue, &tx, 0);
               } else {
                 // Power Off: Echo and Spoof Response
 
                 xQueueSend(lnToNetQueue, &tx, 0);
-                if (tx.data[0] == 0xBB) {
-                  if (tx.data[1] == 0x79) {
-                    // Query 1: Slot 121 -> IB Long Ack
-
-                    lnMsg ack;
-                    uint8_t raw[] = { 0xB4, 0x3B, 0x00, 0x70 };
-                    memcpy(ack.data, raw, 4);
-                    xQueueSend(lnToNetQueue, &ack, 0);
-                    LOG_DEBUG("RX[%d]: %s (Spoofed B4 - IB Status)\n", i, inbound.asChars);
-                  } else if (tx.data[1] == 0x00) {
-                    // Query 2: Slot 0 -> IB Identity (E7)
-
-                    lnMsg slotRsp;
-                    uint8_t raw[] = { 0xE7, 0x0E, 0x00, 0x00, 0x00, 0x03, 0x00, 0x06, 0x00, 0x00, 0x00, 0x49, 0x42, 0x19 };
-                    memcpy(slotRsp.data, raw, 14);
-                    xQueueSend(lnToNetQueue, &slotRsp, 0);
-                    LOG_DEBUG("RX[%d]: %s (Spoofed E7 - IB Identity)\n", i, inbound.asChars);
+                if (tx.data[0] == 0xBB) { // Slot Read Request
+                  switch(tx.data[1]) {
+                    case 0x79: { // Special case: IB Status Query
+                      const uint8_t raw[] = { 0xB4, 0x3B, 0x00, 0x70 };
+                      sendSpoofedPacket(raw, sizeof(raw));
+                      LOG_DEBUG("RX[%d]: %s (Spoofed B4 - IB Status)\n", i, inbound.asChars);
+                      break;
+                    }
+                    case 0x00: { // Special case: IB Identity Query
+                      const uint8_t raw[] = { 0xE7, 0x0E, 0x00, 0x00, 0x00, 0x03, 0x00, 0x06, 0x00, 0x00, 0x00, 0x49, 0x42, 0x19 };
+                      sendSpoofedPacket(raw, sizeof(raw));
+                      LOG_DEBUG("RX[%d]: %s (Spoofed E7 - IB Identity)\n", i, inbound.asChars);
+                      break;
+                    }
+                    default: { // General case: Any other slot query
+                      // Respond with an empty/inactive slot message to prevent client request-loops.
+                      uint8_t slot = tx.data[1];
+                      uint8_t raw[] = { 0xE7, 0x0E, slot, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+                      sendSpoofedPacket(raw, sizeof(raw));
+                      LOG_DEBUG("RX[%d]: %s (Spoofed E7 - Empty Slot %d)\n", i, inbound.asChars, slot);
+                      break;
+                    }
                   }
-                } else if (tx.data[0] != 0x82 && tx.data[0] != 0x83) {
+                } else if (tx.data[0] != 0x82 && tx.data[0] != 0x83) { // Not a power on/off command
                   // Spoof Long Ack (0xB4) for other commands
-
-                  lnMsg ack;
-                  ack.data[0] = 0xB4;
-                  ack.data[1] = tx.data[0] & 0x7F;
-                  ack.data[2] = 0x00;
-                  uint8_t chk = ack.data[0] ^ ack.data[1] ^ ack.data[2];
-                  ack.data[3] = (uint8_t)(chk ^ 0xFF);
-
-                  xQueueSend(lnToNetQueue, &ack, 0);
-                  LOG_DEBUG("RX[%d]: %s (Spoofed B4 - Power Off)\n", i, inbound.asChars);
+                  uint8_t raw[] = { 0xB4, (uint8_t)(tx.data[0] & 0x7F), 0x00, 0x00 };
+                  sendSpoofedPacket(raw, sizeof(raw));
+                  LOG_DEBUG("RX[%d]: %s (Spoofed B4 - Generic Ack)\n", i, inbound.asChars);
                 }
               }
             } else {
