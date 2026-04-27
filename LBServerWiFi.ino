@@ -12,8 +12,7 @@
 #ifdef ENABLE_KASA_CONTROL
 #include "KasaSmartPlug.h"
 #endif
-#include "soc/uart_struct.h"
-#include "soc/uart_reg.h"
+#include "UartTuning.h"
 
 LocoNetBus bus;
 LocoNetDispatcher parser(&bus);
@@ -27,9 +26,6 @@ PowerLine powerMonitor;
 volatile bool g_TrackPower = false;
 uint32_t lastTrafficMilli = 0;
 
-static volatile uint8_t busy_countdown = 0;
-const uint8_t BUSY_COUNTDOWN_START = 10;
-
 QueueHandle_t lnToNetQueue = NULL;
 QueueHandle_t netToLnQueue = NULL;
 
@@ -42,15 +38,11 @@ KasaPlug* systemPlug = NULL;
 ActivityMonitor watchdog(TIMEOUT_TRACK_MS);
 #endif
 
-// Pre-calculated mask for the hardware watchdog
-const uint32_t WATCHDOG_ERROR_MASK = (UART_RXFIFO_OVF_INT_RAW_M | UART_FRM_ERR_INT_RAW_M | UART_PARITY_ERR_INT_RAW_M | UART_GLITCH_DET_INT_RAW_M | UART_BRK_DET_INT_RAW_M  // Added - detect long power off condition
-);
 void onPacket(const lnMsg* p) {
   if (p->data[0] == 0x81 && p->data[1] == 0x7E) return;
   digitalWrite(PIN_STATUS_LED, HIGH);
   lastTrafficMilli = millis();
-
-  if (xQueueSend(lnToNetQueue, p, 0) == pdPASS) busy_countdown = BUSY_COUNTDOWN_START;
+  xQueueSend(lnToNetQueue, p, 0);
 }
 
 void setup() {
@@ -64,13 +56,8 @@ void setup() {
   pinMode(PIN_STATUS_LED, OUTPUT);
   pinMode(PIN_LOCONET_RX, INPUT);
 
-  // Hardware Glitch Filter configuration
-  uint32_t conf0 = READ_PERI_REG(UART_CONF0_REG(1));
-  conf0 &= ~(0xFF << UART_GLITCH_FILT_S);
-  conf0 |= (0xFF << UART_GLITCH_FILT_S);
-  WRITE_PERI_REG(UART_CONF0_REG(1), conf0);
-
   Debug::begin();
+  
   lnToNetQueue = xQueueCreate(LOCONET_QUEUE_DEPTH, sizeof(lnMsg));
   netToLnQueue = xQueueCreate(LOCONET_QUEUE_DEPTH, sizeof(lnMsg));
 
@@ -79,6 +66,8 @@ void setup() {
 
   parser.onPacket(CALLBACK_FOR_ALL_OPCODES, onPacket);
   lnStream.start();
+  applyUartTuning();
+
   watchdog.reset();
 
 #ifdef ENABLE_KASA_CONTROL
@@ -102,18 +91,7 @@ void setup() {
 }
 
 void loop() {
-
-  volatile uint32_t uart_errs = UART1.int_raw.val;
-
-  if (uart_errs & WATCHDOG_ERROR_MASK) {
-    LOG_DEBUG("WATCHDOG: Triggered by[%s%s%s%s%s]\n",
-              (uart_errs & UART_PARITY_ERR_INT_RAW_M) ? " PARITY" : "",
-              (uart_errs & UART_FRM_ERR_INT_RAW_M) ? " FRAME" : "",
-              (uart_errs & UART_RXFIFO_OVF_INT_RAW_M) ? " OVF" : "",
-              (uart_errs & UART_GLITCH_DET_INT_RAW_M) ? " GLITCH" : "",
-              (uart_errs & UART_BRK_DET_INT_RAW_M) ? " BREAK" : "");
-    UART1.int_clr.val = WATCHDOG_ERROR_MASK;
-  }
+  checkUartErrors();
 
   if (g_SystemPower) {
     lnStream.process();
@@ -133,12 +111,13 @@ void loop() {
     }
     LOG_DEBUG("Local echo, OpCode %02X\n", tx.data[0]);
     xQueueSend(lnToNetQueue, &tx, 0);
-    busy_countdown = BUSY_COUNTDOWN_START;
   }
 
-  if (busy_countdown > 0) {
-    busy_countdown--;
-  } else {
+  // If there has been no traffic for a short period, yield to other tasks.
+  // This keeps the loop "hot" during packet bursts but prevents it from
+  // consuming 100% of the core when the bus is idle.
+  const uint32_t BUSY_WINDOW_MS = 10;
+  if (millis() - lastTrafficMilli > BUSY_WINDOW_MS) {
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
