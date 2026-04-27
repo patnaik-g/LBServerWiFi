@@ -118,7 +118,11 @@ void communicationTask(void *pvParameters) {
                       break;
                     }
                   }
-                } else if (tx.data[0] != 0x82 && tx.data[0] != 0x83) { // Not a power on/off command
+                } else if (tx.data[0] == 0x83) { // Power ON command
+                  uint8_t raw[] = { 0x82, 0x00 };
+                  sendSpoofedPacket(raw, sizeof(raw));
+                  LOG_DEBUG("RX[%d]: %s (Spoofed 82 - Power Off)\n", i, inbound.asChars);
+                } else if (tx.data[0] != 0x82) { // Not a power off command
                   // Spoof Long Ack (0xB4) for other commands
                   uint8_t raw[] = { 0xB4, (uint8_t)(tx.data[0] & 0x7F), 0x00, 0x00 };
                   sendSpoofedPacket(raw, sizeof(raw));
