@@ -14,8 +14,9 @@ LBServerWiFi enables model railroad control software (e.g., JMRI, RocRail) to co
 * **mDNS Discovery**: Automatic network advertising as `LBServer.local`, eliminating the need for manual IP configuration.
 * **Web-Based WiFi Provisioning**: A built-in Access Point (AP) mode and captive portal for easy configuration of network credentials.
 * **Wireless and Serial Debugging**: Asynchronous diagnostic monitoring on serial port and via Telnet clients using a idle-priority task.
+* **Hardware-Level Stability**: Custom UART tuning with glitch filtering and RX timeout handling to ensure robust physical LocoNet communication.
 * **Automatic Idle Power-Off**: Monitors LocoNet and WiFi activity to automatically turn off track power after 15 minutes of inactivity.
-* **Optional System Power Control**: Integrates with Kasa Smart Plugs to cut physical system power after 30 minutes of inactivity.
+* **Configurable Power Management**: Compile-time flags (`ENABLE_POWER_MONITOR` and `ENABLE_KASA_CONTROL`) allow optional integration with layout power sensors and Kasa Smart Plugs for automated 30-minute system shutdown.
 
 ## Documentation
 For a detailed technical breakdown of the component architecture, safety systems, and compilation options, please refer to the [LBServerWiFi_Docs.md](./LBServerWiFi_Docs.md) file.
